@@ -9,7 +9,7 @@
   "search.label": " 🔍 搜索: ",
   "search.title": " 搜索 ",
 
-  "statusbar.keys": "[white]↑↓[-] 导航  • [white]Enter[-] SSH  • [white]f[-] 转发  • [white]x[-] 停止转发  • [white]c[-] 复制SSH  • [white]a[-] 添加  • [white]e[-] 编辑  • [white]g[-] 探测  • [white]d[-] 删除  • [white]p[-] 置顶/取消  • [white]/[-] 搜索  • [white]q[-] 退出",
+  "statusbar.keys": "[white]↑↓[-] 导航  • [white]Enter[-] SSH  • [white]f[-] 转发  • [white]x[-] 停止转发  • [white]c[-] 复制SSH  • [white]a[-] 添加  • [white]e[-] 编辑  • [white]g[-] 探测  • [white]d[-] 删除  • [white]p[-] 置顶/取消  • [white]E[-] 导出  • [white]I[-] 导入  • [white]/[-] 搜索  • [white]q[-] 退出",
 
   "details.title": " 详情 ",
   "details.label.basic": "基本设置",
@@ -582,5 +582,23 @@
   "field_help.user.default": "当前用户名",
   "field_help.keys.syntax": "路径[,路径,...]",
   "field_help.keys.examples": "~/.ssh/id_ed25519|~/.ssh/id_rsa,~/.ssh/id_ed25519",
-  "field_help.keys.default": "~/.ssh/id_rsa, ~/.ssh/id_ed25519 等"
+  "field_help.keys.default": "~/.ssh/id_rsa, ~/.ssh/id_ed25519 等",
+
+  "export.title": " 导出配置 ",
+  "export.path_label": "导出路径:",
+  "export.export_btn": "导出",
+  "export.failed": "导出失败: %s",
+  "export.success": "导出成功",
+  "export.success_msg": "已导出到 %s",
+
+  "import.title": " 导入配置 ",
+  "import.path_label": "导入路径:",
+  "import.merge_label": "合并模式:",
+  "import.import_btn": "导入",
+  "import.failed": "导入失败: %s",
+  "import.success": "导入成功",
+  "import.success_msg": "导入 %d 个，跳过 %d 个已存在",
+
+  "common.cancel": "取消",
+  "common.close": "关闭"
 }

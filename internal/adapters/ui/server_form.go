@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/Adembc/lazyssh/internal/core/domain"
+	"github.com/Adembc/lazyssh/internal/i18n"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
@@ -103,11 +104,69 @@ var fieldNameTranslations = map[string]string{
 	"LogLevel":                      "日志级别",
 }
 
+func translateTabName(name string) string {
+	if i18n.Lang() != "zh-CN" {
+		return name
+	}
+	switch name {
+	case "Basic":
+		return "基本"
+	case "Connection":
+		return "连接"
+	case "Forwarding":
+		return "转发"
+	case "Authentication":
+		return "认证"
+	case "Advanced":
+		return "高级"
+	default:
+		return name
+	}
+}
+
+func translateTabAbbrev(name string) string {
+	if i18n.Lang() != "zh-CN" {
+		switch name {
+		case "Connection":
+			return "Conn"
+		case "Forwarding":
+			return "Fwd"
+		case "Authentication":
+			return "Auth"
+		case "Advanced":
+			return "Adv"
+		default:
+			return name
+		}
+	}
+	switch name {
+	case "Basic":
+		return "基本"
+	case "Connection":
+		return "连接"
+	case "Forwarding":
+		return "转发"
+	case "Authentication":
+		return "认证"
+	case "Advanced":
+		return "高级"
+	default:
+		return name
+	}
+}
+
 func translateFieldName(name string) string {
+	if i18n.Lang() != "zh-CN" {
+		return name
+	}
 	if zh, ok := fieldNameTranslations[name]; ok {
 		return zh
 	}
 	return name
+}
+
+func getFieldLabel(fieldName string) string {
+	return translateFieldName(fieldName) + ":"
 }
 
 type ServerFormMode int
@@ -156,7 +215,7 @@ func NewServerForm(mode ServerFormMode, original *domain.Server) *ServerForm {
 		SetScrollable(true)
 	helpPanel.SetBorder(true).
 		SetBorderPadding(0, 0, 1, 1).
-		SetTitle(" Help ").
+		SetTitle(" " + i18n.T("form.help.panel_title") + " ").
 		SetTitleAlign(tview.AlignCenter)
 
 	// Create main container for form and help
@@ -278,9 +337,9 @@ func (sf *ServerForm) build() {
 
 func (sf *ServerForm) titleForMode() string {
 	if sf.mode == ServerFormEdit {
-		return "Edit Server"
+		return i18n.T("form.title.edit")
 	}
-	return "Add Server"
+	return i18n.T("form.title.add")
 }
 
 func (sf *ServerForm) getCurrentTabIndex() int {
@@ -295,9 +354,9 @@ func (sf *ServerForm) getCurrentTabIndex() int {
 func (sf *ServerForm) calculateTabsWidth(useAbbrev bool) int {
 	width := 0
 	for i, tab := range sf.tabs {
-		tabName := tab
+		tabName := translateTabName(tab)
 		if useAbbrev {
-			tabName = sf.tabAbbrev[tab]
+			tabName = translateTabAbbrev(tab)
 		}
 		width += len(tabName) + 2 // space + name + space
 		if i < len(sf.tabs)-1 {
@@ -326,9 +385,9 @@ func (sf *ServerForm) determineDisplayMode(width int) string {
 }
 
 func (sf *ServerForm) renderTab(tab string, isCurrent bool, useAbbrev bool, index int) string {
-	tabName := tab
+	tabName := translateTabName(tab)
 	if useAbbrev {
-		tabName = sf.tabAbbrev[tab]
+		tabName = translateTabAbbrev(tab)
 	}
 	regionID := fmt.Sprintf("tab_%d", index)
 	if isCurrent {
@@ -554,46 +613,40 @@ func escapeForTview(text string) string {
 func (sf *ServerForm) formatDetailedHelp(help *FieldHelp) string {
 	var b strings.Builder
 
-	// Calculate separator width dynamically
-	// Get the actual width of the help panel if possible
-	separatorWidth := 40 // Default width
+	separatorWidth := 40
 	if sf.helpPanel != nil {
 		_, _, width, _ := sf.helpPanel.GetInnerRect()
 		if width > 0 {
-			separatorWidth = width // Fill entire width
+			separatorWidth = width
 		}
 	}
 
-	// Title with field name and separator below
-	b.WriteString(fmt.Sprintf("[yellow::b]📖 %s[-::-]\n", translateFieldName(help.Field)))
-	b.WriteString("[#444444]" + strings.Repeat("─", separatorWidth) + "[-]\n\n")
+	b.WriteString(fmt.Sprintf(i18n.T("form.help.title"), translateFieldName(help.Field)))
+	b.WriteString("\n[#444444]" + strings.Repeat("─", separatorWidth) + "[-]\n\n")
 
-	// Description - needs escaping as it might contain brackets
 	b.WriteString(fmt.Sprintf("%s\n\n", escapeForTview(help.Description)))
 
-	// Syntax - needs escaping as it often contains brackets like [user@]
 	if help.Syntax != "" {
-		b.WriteString("[cyan]Syntax:[-] ")
-		b.WriteString(fmt.Sprintf("%s\n\n", escapeForTview(help.Syntax)))
+		b.WriteString(fmt.Sprintf(i18n.T("form.help.syntax"), escapeForTview(help.Syntax)))
+		b.WriteString("\n\n")
 	}
 
-	// Examples - needs escaping as they might contain special characters
 	if len(help.Examples) > 0 {
-		b.WriteString("[cyan]Examples:[-]\n")
+		b.WriteString(i18n.T("form.help.examples") + "\n")
 		for _, ex := range help.Examples {
 			b.WriteString(fmt.Sprintf("  • %s\n", escapeForTview(ex)))
 		}
 		b.WriteString("\n")
 	}
 
-	// Default value - already processed by formatDefaultValue, no additional escaping needed
 	if help.Default != "" {
-		b.WriteString(fmt.Sprintf("[dim]Default: %s[-]\n", help.Default))
+		b.WriteString(fmt.Sprintf(i18n.T("form.help.default"), help.Default))
+		b.WriteString("\n")
 	}
 
-	// Version info - unlikely to contain brackets, but escape for safety
 	if help.Since != "" {
-		b.WriteString(fmt.Sprintf("[dim]Available since: %s[-]\n", escapeForTview(help.Since)))
+		b.WriteString(fmt.Sprintf(i18n.T("form.help.since"), escapeForTview(help.Since)))
+		b.WriteString("\n")
 	}
 
 	return b.String()
@@ -1029,12 +1082,12 @@ func (sf *ServerForm) validateField(fieldName, value string) string {
 
 // addDropDownWithHelp adds a dropdown field with help support
 func (sf *ServerForm) addDropDownWithHelp(form *tview.Form, label, fieldName string, options []string, initialOption int) {
+	translatedLabel := getFieldLabel(fieldName)
 	dropdown := tview.NewDropDown().
-		SetLabel(label).
+		SetLabel(translatedLabel).
 		SetOptions(options, nil).
 		SetCurrentOption(initialOption)
 
-	// Add focus handler to show help
 	dropdown.SetFocusFunc(func() {
 		sf.updateHelp(fieldName)
 	})
@@ -1042,10 +1095,10 @@ func (sf *ServerForm) addDropDownWithHelp(form *tview.Form, label, fieldName str
 	form.AddFormItem(dropdown)
 }
 
-// addInputFieldWithHelp adds a regular input field with help support
 func (sf *ServerForm) addInputFieldWithHelp(form *tview.Form, label, fieldName, defaultValue string, width int, placeholder string) *tview.InputField {
+	translatedLabel := getFieldLabel(fieldName)
 	field := tview.NewInputField().
-		SetLabel(label).
+		SetLabel(translatedLabel).
 		SetText(defaultValue).
 		SetFieldWidth(width)
 
@@ -1064,11 +1117,11 @@ func (sf *ServerForm) addInputFieldWithHelp(form *tview.Form, label, fieldName, 
 
 // addValidatedInputField adds an input field with real-time validation
 func (sf *ServerForm) addValidatedInputField(form *tview.Form, label, fieldName, defaultValue string, width int, placeholder string) *tview.InputField {
-	// Store the original label without color tags
-	originalLabel := label
+	translatedLabel := getFieldLabel(fieldName)
+	originalLabel := translatedLabel
 
 	field := tview.NewInputField().
-		SetLabel(label).
+		SetLabel(translatedLabel).
 		SetText(defaultValue).
 		SetFieldWidth(width)
 
@@ -1971,34 +2024,19 @@ func (sf *ServerForm) handleSave() bool {
 				}
 
 				// Build error message
-				errorMsg := fmt.Sprintf("Validation failed (%d error%s):\n\n",
-					sf.validation.GetErrorCount(),
-					func() string {
-						if sf.validation.GetErrorCount() == 1 {
-							return ""
-						}
-						return "s"
-					}())
-
+				errorCount := sf.validation.GetErrorCount()
+				errorMsg := i18n.T("form.validation_title")
 				for i, err := range errors {
 					errorMsg += fmt.Sprintf("%d. %s\n", i+1, err)
 				}
 
 				if truncated {
-					errorMsg += fmt.Sprintf("\n... and %d more error%s",
-						sf.validation.GetErrorCount()-maxErrorsToShow,
-						func() string {
-							if sf.validation.GetErrorCount()-maxErrorsToShow == 1 {
-								return ""
-							}
-							return "s"
-						}())
+					errorMsg += fmt.Sprintf(i18n.T("form.validation_more"), errorCount-maxErrorsToShow)
 				}
 
-				// Use tview's built-in Modal
 				modal := tview.NewModal().
 					SetText(errorMsg).
-					AddButtons([]string{"OK"}).
+					AddButtons([]string{i18n.T("form.btn.ok")}).
 					SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 						sf.app.SetRoot(sf.Flex, true)
 					})
@@ -2028,8 +2066,8 @@ func (sf *ServerForm) handleCancel() {
 		// If app reference is available, show confirmation dialog
 		if sf.app != nil {
 			modal := tview.NewModal().
-				SetText("You have unsaved changes. Are you sure you want to exit?").
-				AddButtons([]string{"[yellow]S[-]ave", "[yellow]D[-]iscard", "[yellow]C[-]ancel"}).
+				SetText(i18n.T("form.unsaved_changes")).
+				AddButtons([]string{i18n.T("form.btn.save"), i18n.T("form.btn.discard"), i18n.T("form.btn.cancel")}).
 				SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 					switch buttonIndex {
 					case 0: // Save

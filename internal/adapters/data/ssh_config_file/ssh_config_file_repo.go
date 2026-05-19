@@ -15,7 +15,12 @@
 package ssh_config_file
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/Adembc/lazyssh/internal/core/crypto"
 	"github.com/Adembc/lazyssh/internal/core/domain"
@@ -191,4 +196,130 @@ func (r *Repository) SetPassword(alias string, password string) error {
 // GetPassword retrieves and decrypts the password for a server alias.
 func (r *Repository) GetPassword(alias string) (string, error) {
 	return r.metadataManager.getPassword(alias)
+}
+
+func (r *Repository) ExportServers(path string) error {
+	servers, err := r.ListServers("")
+	if err != nil {
+		return fmt.Errorf("failed to list servers: %w", err)
+	}
+
+	exportMeta := make(map[string]ports.ServerExportMeta)
+	for _, server := range servers {
+		meta := ports.ServerExportMeta{
+			Tags:     server.Tags,
+			SSHCount: server.SSHCount,
+		}
+		if !server.PinnedAt.IsZero() {
+			meta.PinnedAt = server.PinnedAt.Format(time.RFC3339)
+		}
+		if !server.LastSeen.IsZero() {
+			meta.LastSeen = server.LastSeen.Format(time.RFC3339)
+		}
+		if server.Password != "" {
+			meta.Password = server.Password
+		}
+		exportMeta[server.Alias] = meta
+	}
+
+	data := ports.ExportData{
+		Version:    "1.0",
+		Servers:    servers,
+		Metadata:   exportMeta,
+		ExportedAt: time.Now().Format(time.RFC3339),
+	}
+
+	absPath := path
+	if strings.HasPrefix(path, "~") {
+		home, _ := os.UserHomeDir()
+		relPath := strings.TrimPrefix(path, "~")
+		relPath = strings.TrimPrefix(relPath, "/")
+		absPath = filepath.Join(home, relPath)
+	} else if !filepath.IsAbs(path) {
+		home, _ := os.UserHomeDir()
+		absPath = filepath.Join(home, path)
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal export data: %w", err)
+	}
+
+	if err := os.WriteFile(absPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write export file: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) ImportServers(path string, merge bool) (int, int, error) {
+	absPath := path
+	if strings.HasPrefix(path, "~") {
+		home, _ := os.UserHomeDir()
+		relPath := strings.TrimPrefix(path, "~")
+		relPath = strings.TrimPrefix(relPath, "/")
+		absPath = filepath.Join(home, relPath)
+	} else if !filepath.IsAbs(path) {
+		home, _ := os.UserHomeDir()
+		absPath = filepath.Join(home, path)
+	}
+
+	jsonData, err := os.ReadFile(absPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to read import file: %w", err)
+	}
+
+	var data ports.ExportData
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return 0, 0, fmt.Errorf("failed to parse import file: %w", err)
+	}
+
+	cfg, err := r.loadConfig()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	imported := 0
+	skipped := 0
+
+	for _, server := range data.Servers {
+		exists := r.serverExists(cfg, server.Alias)
+
+		if exists && !merge {
+			host := r.findHostByAlias(cfg, server.Alias)
+			if host != nil {
+				r.updateHostNodes(host, server)
+				imported++
+			}
+		} else if !exists {
+			host := r.createHostFromServer(server)
+			cfg.Hosts = append(cfg.Hosts, host)
+			imported++
+		} else {
+			skipped++
+		}
+
+		if meta, ok := data.Metadata[server.Alias]; ok {
+			password := meta.Password
+			server.Password = password
+			server.Tags = meta.Tags
+			if meta.PinnedAt != "" {
+				server.PinnedAt, _ = time.Parse(time.RFC3339, meta.PinnedAt)
+			}
+			if meta.LastSeen != "" {
+				server.LastSeen, _ = time.Parse(time.RFC3339, meta.LastSeen)
+			}
+			server.SSHCount = meta.SSHCount
+			server.Password = ""
+			_ = r.metadataManager.updateServer(server, server.Alias, password)
+		}
+	}
+
+	if imported > 0 {
+		if err := r.saveConfig(cfg); err != nil {
+			return imported, skipped, fmt.Errorf("failed to save config: %w", err)
+		}
+	}
+
+	return imported, skipped, nil
 }

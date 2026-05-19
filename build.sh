@@ -123,6 +123,11 @@ build_binary() {
     fi
 }
 
+LANG_SUFFIX=""
+if [[ "$LANG" != "en" ]]; then
+    LANG_SUFFIX="-${LANG}"
+fi
+
 log_info "LazySSH Build"
 log_info "Version:  ${VERSION}"
 log_info "Commit:   ${COMMIT}"
@@ -130,29 +135,27 @@ log_info "Language: ${LANG}"
 log_info "Output:   ${OUTPUT_DIR}"
 echo ""
 
-# Clean previous build
 rm -f "${OUTPUT_DIR}"/lazyssh* 2>/dev/null || true
 
 if [[ "$PARALLEL" == true ]]; then
     log_info "Building for all platforms..."
     echo ""
 
-    build_binary "linux"   "amd64"   "lazyssh-linux-amd64"
-    build_binary "linux"   "arm64"   "lazyssh-linux-arm64"
-    build_binary "darwin"  "amd64"   "lazyssh-darwin-amd64"
-    build_binary "darwin"  "arm64"   "lazyssh-darwin-arm64"
-    build_binary "windows" "amd64"   "lazyssh-windows-amd64.exe"
+    build_binary "linux"   "amd64"   "lazyssh${LANG_SUFFIX}-linux-amd64"
+    build_binary "linux"   "arm64"   "lazyssh${LANG_SUFFIX}-linux-arm64"
+    build_binary "darwin"  "amd64"   "lazyssh${LANG_SUFFIX}-darwin-amd64"
+    build_binary "darwin"  "arm64"   "lazyssh${LANG_SUFFIX}-darwin-arm64"
+    build_binary "windows" "amd64"   "lazyssh${LANG_SUFFIX}-windows-amd64.exe"
 
     echo ""
     log_success "All builds complete!"
 else
-    # Build for current platform
     CURRENT_OS=$(go env GOOS)
     CURRENT_ARCH=$(go env GOARCH)
 
-    build_binary "$CURRENT_OS" "$CURRENT_ARCH" "lazyssh"
+    build_binary "$CURRENT_OS" "$CURRENT_ARCH" "lazyssh${LANG_SUFFIX}"
 
     echo ""
-    log_success "Build complete: ${OUTPUT_DIR}/lazyssh"
-    log_info "Run: ${OUTPUT_DIR}/lazyssh"
+    log_success "Build complete: ${OUTPUT_DIR}/lazyssh${LANG_SUFFIX}"
+    log_info "Run: ${OUTPUT_DIR}/lazyssh${LANG_SUFFIX}"
 fi

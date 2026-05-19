@@ -412,3 +412,11 @@ func resolveSSHDestination(alias string) (string, int, bool) {
 	}
 	return host, port, true
 }
+
+func (s *serverService) ExportServers(path string) error {
+	return s.serverRepository.ExportServers(path)
+}
+
+func (s *serverService) ImportServers(path string, merge bool) (int, int, error) {
+	return s.serverRepository.ImportServers(path, merge)
+}

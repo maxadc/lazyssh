@@ -93,6 +93,12 @@ func (t *tui) handleGlobalKeys(event *tcell.EventKey) *tcell.EventKey {
 	case 'k':
 		t.handleNavigateUp()
 		return nil
+	case 'E':
+		t.handleExport()
+		return nil
+	case 'I':
+		t.handleImport()
+		return nil
 	}
 
 	if event.Key() == tcell.KeyEnter {
@@ -644,4 +650,97 @@ func (t *tui) handleStopForwarding() {
 			})
 		}()
 	}
+}
+
+func (t *tui) handleExport() {
+	form := tview.NewForm()
+	form.SetTitle(i18n.T("export.title"))
+	form.SetBorder(true)
+
+	pathField := tview.NewInputField()
+	pathField.SetLabel(i18n.T("export.path_label"))
+	pathField.SetPlaceholder("~/lazyssh-export.json")
+	pathField.SetText("~/lazyssh-export.json")
+
+	form.AddFormItem(pathField)
+	form.AddButton(i18n.T("export.export_btn"), func() {
+		path := pathField.GetText()
+		go func() {
+			err := t.serverService.ExportServers(path)
+			t.app.QueueUpdateDraw(func() {
+				if err != nil {
+					modal := tview.NewModal().
+						SetText(fmt.Sprintf(i18n.T("export.failed"), err.Error())).
+						AddButtons([]string{i18n.T("common.close")}).
+						SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+							t.returnToMain()
+						})
+					t.app.SetRoot(modal, true)
+				} else {
+					modal := tview.NewModal().
+						SetText(fmt.Sprintf(i18n.T("export.success_msg"), path)).
+						AddButtons([]string{i18n.T("common.close")}).
+						SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+							t.returnToMain()
+						})
+					t.app.SetRoot(modal, true)
+				}
+			})
+		}()
+	})
+	form.AddButton(i18n.T("common.cancel"), func() {
+		t.returnToMain()
+	})
+
+	t.app.SetRoot(form, true)
+}
+
+func (t *tui) handleImport() {
+	form := tview.NewForm()
+	form.SetTitle(i18n.T("import.title"))
+	form.SetBorder(true)
+
+	pathField := tview.NewInputField()
+	pathField.SetLabel(i18n.T("import.path_label"))
+	pathField.SetPlaceholder("~/lazyssh-export.json")
+
+	mergeField := tview.NewCheckbox()
+	mergeField.SetLabel(i18n.T("import.merge_label"))
+	mergeField.SetChecked(true)
+
+	form.AddFormItem(pathField)
+	form.AddFormItem(mergeField)
+	form.AddButton(i18n.T("import.import_btn"), func() {
+		path := pathField.GetText()
+		merge := mergeField.IsChecked()
+		go func() {
+			imported, skipped, err := t.serverService.ImportServers(path, merge)
+			t.app.QueueUpdateDraw(func() {
+				if err != nil {
+					modal := tview.NewModal().
+						SetText(fmt.Sprintf(i18n.T("import.failed"), err.Error())).
+						AddButtons([]string{i18n.T("common.close")}).
+						SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+							t.returnToMain()
+						})
+					t.app.SetRoot(modal, true)
+				} else {
+					msg := fmt.Sprintf(i18n.T("import.success_msg"), imported, skipped)
+					modal := tview.NewModal().
+						SetText(msg).
+						AddButtons([]string{i18n.T("common.close")}).
+						SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+							t.returnToMain()
+							t.refreshServerList()
+						})
+					t.app.SetRoot(modal, true)
+				}
+			})
+		}()
+	})
+	form.AddButton(i18n.T("common.cancel"), func() {
+		t.returnToMain()
+	})
+
+	t.app.SetRoot(form, true)
 }
