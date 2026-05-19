@@ -29,6 +29,87 @@ import (
 // This variable references the centralized defaults for consistency
 var sshDefaults = SSHFieldDefaults
 
+// fieldNameTranslations maps raw field names to Chinese display names (used in help panel titles)
+var fieldNameTranslations = map[string]string{
+	"Alias":                         "别名",
+	"Host":                          "主机",
+	"User":                          "用户",
+	"Port":                          "端口",
+	"Keys":                          "密钥",
+	"Tags":                          "标签",
+	"Password":                      "密码",
+	"AuthMethod":                    "认证方式",
+	"LoginMode":                     "登录模式",
+	"ProxyJump":                     "跳板机",
+	"ProxyCommand":                  "代理命令",
+	"RemoteCommand":                 "远程命令",
+	"RequestTTY":                    "请求TTY",
+	"SessionType":                   "会话类型",
+	"ConnectTimeout":                "连接超时",
+	"ConnectionAttempts":            "连接重试次数",
+	"BindAddress":                   "绑定地址",
+	"BindInterface":                 "绑定接口",
+	"AddressFamily":                 "地址族",
+	"ExitOnForwardFailure":          "转发失败退出",
+	"IPQoS":                         "IP服务质量",
+	"CanonicalizeHostname":          "主机名规范化",
+	"CanonicalDomains":              "规范域名",
+	"CanonicalizeFallbackLocal":     "规范回退",
+	"CanonicalizeMaxDots":           "规范最大点数",
+	"CanonicalizePermittedCNAMEs":   "规范CNAME",
+	"ServerAliveInterval":           "服务器保活间隔",
+	"ServerAliveCountMax":           "保活尝试次数",
+	"Compression":                   "压缩",
+	"TCPKeepAlive":                  "TCP保活",
+	"BatchMode":                     "批处理模式",
+	"ControlMaster":                 "主控连接",
+	"ControlPath":                   "控制路径",
+	"ControlPersist":                "连接持续",
+	"LocalForward":                  "本地转发",
+	"RemoteForward":                 "远程转发",
+	"DynamicForward":                "动态转发",
+	"ClearAllForwardings":           "清除所有转发",
+	"GatewayPorts":                  "网关端口",
+	"ForwardAgent":                  "转发代理",
+	"ForwardX11":                    "X11转发",
+	"ForwardX11Trusted":             "X11转发(信任)",
+	"PubkeyAuthentication":          "公钥认证",
+	"IdentitiesOnly":                "仅身份文件",
+	"AddKeysToAgent":                "添加密钥到代理",
+	"IdentityAgent":                 "身份代理",
+	"PasswordAuthentication":        "密码认证",
+	"KbdInteractiveAuthentication":  "键盘交互认证",
+	"NumberOfPasswordPrompts":       "密码提示次数",
+	"PreferredAuthentications":      "认证方式优先级",
+	"PubkeyAcceptedAlgorithms":      "公钥接受算法",
+	"HostbasedAcceptedAlgorithms":   "基于主机的接受算法",
+	"StrictHostKeyChecking":         "严格主机密钥检查",
+	"CheckHostIP":                   "检查主机IP",
+	"FingerprintHash":               "指纹哈希",
+	"UserKnownHostsFile":            "已知主机文件",
+	"HostKeyAlgorithms":             "主机密钥算法",
+	"Ciphers":                       "加密算法",
+	"MACs":                          "消息认证码",
+	"KexAlgorithms":                 "密钥交换算法",
+	"VerifyHostKeyDNS":              "DNS验证主机密钥",
+	"UpdateHostKeys":                "更新主机密钥",
+	"HashKnownHosts":                "哈希已知主机",
+	"VisualHostKey":                 "可视化主机密钥",
+	"LocalCommand":                  "本地命令",
+	"PermitLocalCommand":            "允许本地命令",
+	"EscapeChar":                    "转义字符",
+	"SendEnv":                       "发送环境变量",
+	"SetEnv":                        "设置环境变量",
+	"LogLevel":                      "日志级别",
+}
+
+func translateFieldName(name string) string {
+	if zh, ok := fieldNameTranslations[name]; ok {
+		return zh
+	}
+	return name
+}
+
 type ServerFormMode int
 
 const (
@@ -484,7 +565,7 @@ func (sf *ServerForm) formatDetailedHelp(help *FieldHelp) string {
 	}
 
 	// Title with field name and separator below
-	b.WriteString(fmt.Sprintf("[yellow::b]📖 %s[-::-]\n", help.Field))
+	b.WriteString(fmt.Sprintf("[yellow::b]📖 %s[-::-]\n", translateFieldName(help.Field)))
 	b.WriteString("[#444444]" + strings.Repeat("─", separatorWidth) + "[-]\n\n")
 
 	// Description - needs escaping as it might contain brackets

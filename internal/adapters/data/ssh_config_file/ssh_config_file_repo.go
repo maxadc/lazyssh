@@ -17,6 +17,7 @@ package ssh_config_file
 import (
 	"fmt"
 
+	"github.com/Adembc/lazyssh/internal/core/crypto"
 	"github.com/Adembc/lazyssh/internal/core/domain"
 	"github.com/Adembc/lazyssh/internal/core/ports"
 	"github.com/kevinburke/ssh_config"
@@ -66,6 +67,19 @@ func (r *Repository) ListServers(query string) ([]domain.Server, error) {
 		metadata = make(map[string]ServerMetadata)
 	}
 	servers = r.mergeMetadata(servers, metadata)
+
+	// Decrypt passwords from metadata
+	for i, server := range servers {
+		if meta, exists := metadata[server.Alias]; exists && meta.EncryptedPassword != "" {
+			password, decryptErr := crypto.Decrypt(meta.EncryptedPassword)
+			if decryptErr != nil {
+				r.logger.Warnw("failed to decrypt password", "alias", server.Alias, "error", decryptErr)
+			} else {
+				servers[i].Password = password
+			}
+		}
+	}
+
 	if query == "" {
 		return servers, nil
 	}
@@ -91,7 +105,9 @@ func (r *Repository) AddServer(server domain.Server) error {
 		r.logger.Warnf("Failed to save config while adding new server: %v", err)
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-	return r.metadataManager.updateServer(server, server.Alias)
+	password := server.Password
+	server.Password = ""
+	return r.metadataManager.updateServer(server, server.Alias, password)
 }
 
 // UpdateServer updates an existing server in the SSH config.
@@ -131,7 +147,9 @@ func (r *Repository) UpdateServer(server domain.Server, newServer domain.Server)
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 	// Update metadata; pass old alias to allow inline migration
-	return r.metadataManager.updateServer(newServer, server.Alias)
+	password := newServer.Password
+	newServer.Password = ""
+	return r.metadataManager.updateServer(newServer, server.Alias, password)
 }
 
 // DeleteServer removes a server from the SSH config.
@@ -163,4 +181,14 @@ func (r *Repository) SetPinned(alias string, pinned bool) error {
 // RecordSSH increments the SSH access count and updates the last seen timestamp for a server.
 func (r *Repository) RecordSSH(alias string) error {
 	return r.metadataManager.recordSSH(alias)
+}
+
+// SetPassword encrypts and stores the password for a server alias.
+func (r *Repository) SetPassword(alias string, password string) error {
+	return r.metadataManager.setPassword(alias, password)
+}
+
+// GetPassword retrieves and decrypts the password for a server alias.
+func (r *Repository) GetPassword(alias string) (string, error) {
+	return r.metadataManager.getPassword(alias)
 }
