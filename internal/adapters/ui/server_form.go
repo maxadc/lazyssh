@@ -1206,6 +1206,7 @@ func (sf *ServerForm) getDefaultValues() ServerFormData {
 			Port:                 fmt.Sprint(sf.original.Port),
 			Key:                  strings.Join(sf.original.IdentityFiles, ", "),
 			Tags:                 strings.Join(sf.original.Tags, ", "),
+			Password:             sf.original.Password,
 			ProxyJump:            sf.original.ProxyJump,
 			ProxyCommand:         sf.original.ProxyCommand,
 			RemoteCommand:        sf.original.RemoteCommand,
@@ -1218,181 +1219,104 @@ func (sf *ServerForm) getDefaultValues() ServerFormData {
 			AddressFamily:        sf.original.AddressFamily,
 			ExitOnForwardFailure: sf.original.ExitOnForwardFailure,
 			IPQoS:                sf.original.IPQoS,
-			// Hostname canonicalization
+
 			CanonicalizeHostname:        sf.original.CanonicalizeHostname,
 			CanonicalDomains:            sf.original.CanonicalDomains,
 			CanonicalizeFallbackLocal:   sf.original.CanonicalizeFallbackLocal,
 			CanonicalizeMaxDots:         sf.original.CanonicalizeMaxDots,
 			CanonicalizePermittedCNAMEs: sf.original.CanonicalizePermittedCNAMEs,
-			GatewayPorts:                sf.original.GatewayPorts,
-			LocalForward:                strings.Join(sf.original.LocalForward, ", "),
-			RemoteForward:               strings.Join(sf.original.RemoteForward, ", "),
-			DynamicForward:              strings.Join(sf.original.DynamicForward, ", "),
-			ClearAllForwardings:         sf.original.ClearAllForwardings,
-			// Public key
-			PubkeyAuthentication: sf.original.PubkeyAuthentication,
-			IdentitiesOnly:       sf.original.IdentitiesOnly,
-			// SSH Agent
-			AddKeysToAgent: sf.original.AddKeysToAgent,
-			IdentityAgent:  sf.original.IdentityAgent,
-			// Password & Interactive
+
+			GatewayPorts:        sf.original.GatewayPorts,
+			LocalForward:        strings.Join(sf.original.LocalForward, ", "),
+			RemoteForward:       strings.Join(sf.original.RemoteForward, ", "),
+			DynamicForward:      strings.Join(sf.original.DynamicForward, ", "),
+			ClearAllForwardings: sf.original.ClearAllForwardings,
+
+			PubkeyAuthentication:        sf.original.PubkeyAuthentication,
+			IdentitiesOnly:              sf.original.IdentitiesOnly,
+			AddKeysToAgent:              sf.original.AddKeysToAgent,
+			IdentityAgent:               sf.original.IdentityAgent,
 			PasswordAuthentication:       sf.original.PasswordAuthentication,
 			KbdInteractiveAuthentication: sf.original.KbdInteractiveAuthentication,
 			NumberOfPasswordPrompts:      sf.original.NumberOfPasswordPrompts,
-			// Advanced
-			PreferredAuthentications:    sf.original.PreferredAuthentications,
-			ForwardAgent:                sf.original.ForwardAgent,
-			ForwardX11:                  sf.original.ForwardX11,
-			ForwardX11Trusted:           sf.original.ForwardX11Trusted,
-			ControlMaster:               sf.original.ControlMaster,
-			ControlPath:                 sf.original.ControlPath,
-			ControlPersist:              sf.original.ControlPersist,
-			ServerAliveInterval:         sf.original.ServerAliveInterval,
-			ServerAliveCountMax:         sf.original.ServerAliveCountMax,
-			Compression:                 sf.original.Compression,
-			TCPKeepAlive:                sf.original.TCPKeepAlive,
-			BatchMode:                   sf.original.BatchMode,
-			StrictHostKeyChecking:       sf.original.StrictHostKeyChecking,
-			UserKnownHostsFile:          sf.original.UserKnownHostsFile,
-			HostKeyAlgorithms:           sf.original.HostKeyAlgorithms,
-			PubkeyAcceptedAlgorithms:    sf.original.PubkeyAcceptedAlgorithms,
+			PreferredAuthentications:     sf.original.PreferredAuthentications,
+
+			ForwardAgent:      sf.original.ForwardAgent,
+			ForwardX11:        sf.original.ForwardX11,
+			ForwardX11Trusted: sf.original.ForwardX11Trusted,
+			ControlMaster:     sf.original.ControlMaster,
+			ControlPath:       sf.original.ControlPath,
+			ControlPersist:    sf.original.ControlPersist,
+			ServerAliveInterval:  sf.original.ServerAliveInterval,
+			ServerAliveCountMax:  sf.original.ServerAliveCountMax,
+			Compression:          sf.original.Compression,
+			TCPKeepAlive:         sf.original.TCPKeepAlive,
+			BatchMode:            sf.original.BatchMode,
+			StrictHostKeyChecking:     sf.original.StrictHostKeyChecking,
+			UserKnownHostsFile:        sf.original.UserKnownHostsFile,
+			HostKeyAlgorithms:         sf.original.HostKeyAlgorithms,
+			PubkeyAcceptedAlgorithms:  sf.original.PubkeyAcceptedAlgorithms,
 			HostbasedAcceptedAlgorithms: sf.original.HostbasedAcceptedAlgorithms,
-			MACs:                        sf.original.MACs,
-			Ciphers:                     sf.original.Ciphers,
-			KexAlgorithms:               sf.original.KexAlgorithms,
-			VerifyHostKeyDNS:            sf.original.VerifyHostKeyDNS,
-			UpdateHostKeys:              sf.original.UpdateHostKeys,
-			HashKnownHosts:              sf.original.HashKnownHosts,
-			VisualHostKey:               sf.original.VisualHostKey,
-			LocalCommand:                sf.original.LocalCommand,
-			PermitLocalCommand:          sf.original.PermitLocalCommand,
-			EscapeChar:                  sf.original.EscapeChar,
-			SendEnv:                     strings.Join(sf.original.SendEnv, ", "),
-			SetEnv:                      strings.Join(sf.original.SetEnv, ", "),
-			LogLevel:                    sf.original.LogLevel,
+			MACs:                       sf.original.MACs,
+			Ciphers:                    sf.original.Ciphers,
+			KexAlgorithms:              sf.original.KexAlgorithms,
+			VerifyHostKeyDNS:           sf.original.VerifyHostKeyDNS,
+			UpdateHostKeys:             sf.original.UpdateHostKeys,
+			HashKnownHosts:             sf.original.HashKnownHosts,
+			VisualHostKey:              sf.original.VisualHostKey,
+			LocalCommand:               sf.original.LocalCommand,
+			PermitLocalCommand:         sf.original.PermitLocalCommand,
+			EscapeChar:                 sf.original.EscapeChar,
+			SendEnv:                    strings.Join(sf.original.SendEnv, ", "),
+			SetEnv:                     strings.Join(sf.original.SetEnv, ", "),
+			LogLevel:                   sf.original.LogLevel,
 		}
 	}
-	// For new servers, use empty values instead of SSH defaults
-	// SSH defaults will be applied by the SSH client if values are not specified
 	return ServerFormData{
-		Alias: "",   // Explicitly empty for new servers
-		Host:  "",   // Explicitly empty for new servers
-		User:  "",   // Empty for new servers (SSH will use current username)
-		Port:  "22", // Keep port 22 as it's the standard SSH port
-		Key:   "",   // Empty for new servers (SSH will try default keys)
-		Tags:  "",
-
-		// All other fields should be empty for new servers
-		// The SSH client will use its defaults when these are not specified
-		ProxyJump:            "",
-		ProxyCommand:         "",
-		RemoteCommand:        "",
-		RequestTTY:           "",
-		SessionType:          "",
-		ConnectTimeout:       "",
-		ConnectionAttempts:   "",
-		BindAddress:          "",
-		BindInterface:        "",
-		AddressFamily:        "",
-		ExitOnForwardFailure: "",
-		IPQoS:                "",
-
-		// Hostname canonicalization
-		CanonicalizeHostname:        "",
-		CanonicalDomains:            "",
-		CanonicalizeFallbackLocal:   "",
-		CanonicalizeMaxDots:         "",
-		CanonicalizePermittedCNAMEs: "",
-
-		// Port forwarding
-		LocalForward:        "",
-		RemoteForward:       "",
-		DynamicForward:      "",
-		ClearAllForwardings: "",
-		GatewayPorts:        "",
-
-		// Authentication
-		PubkeyAuthentication:         "",
-		IdentitiesOnly:               "",
-		AddKeysToAgent:               "",
-		IdentityAgent:                "",
-		PasswordAuthentication:       "",
-		KbdInteractiveAuthentication: "",
-		NumberOfPasswordPrompts:      "",
-		PreferredAuthentications:     "",
-		PubkeyAcceptedAlgorithms:     "",
-		HostbasedAcceptedAlgorithms:  "",
-
-		// Forwarding
-		ForwardAgent:      "",
-		ForwardX11:        "",
-		ForwardX11Trusted: "",
-
-		// Multiplexing
-		ControlMaster:  "",
-		ControlPath:    "",
-		ControlPersist: "",
-
-		// Keep-alive
-		ServerAliveInterval: "",
-		ServerAliveCountMax: "",
-		TCPKeepAlive:        "",
-
-		// Connection
-		Compression: "",
-		BatchMode:   "",
-
-		// Security
-		StrictHostKeyChecking: "",
-		CheckHostIP:           "",
-		FingerprintHash:       "",
-		UserKnownHostsFile:    "",
-		HostKeyAlgorithms:     "",
-		MACs:                  "",
-		Ciphers:               "",
-		KexAlgorithms:         "",
-		VerifyHostKeyDNS:      "",
-		UpdateHostKeys:        "",
-		HashKnownHosts:        "",
-		VisualHostKey:         "",
-
-		// Command execution
-		LocalCommand:       "",
-		PermitLocalCommand: "",
-		EscapeChar:         "",
-
-		// Environment
-		SendEnv: "",
-		SetEnv:  "",
-
-		// Debugging
-		LogLevel: "",
+		Alias:    "",
+		Host:     "",
+		User:     "",
+		Port:     "",
+		Key:      "",
+		Tags:     "",
+		Password: "",
 	}
 }
 
-// createBasicForm creates the Basic configuration tab
 func (sf *ServerForm) createBasicForm() {
 	form := tview.NewForm()
 	defaultValues := sf.getDefaultValues()
 
-	// Add validated input fields
 	sf.addValidatedInputField(form, "Alias:", "Alias", defaultValues.Alias, 20, GetFieldPlaceholder("Alias"))
 	sf.addValidatedInputField(form, "Host/IP:", "Host", defaultValues.Host, 20, GetFieldPlaceholder("Host"))
 	sf.addValidatedInputField(form, "User:", "User", defaultValues.User, 20, GetFieldPlaceholder("User"))
 	sf.addValidatedInputField(form, "Port:", "Port", defaultValues.Port, 20, GetFieldPlaceholder("Port"))
 
-	// Keys field with autocomplete
 	keysField := sf.addValidatedInputField(form, "Keys:", "Keys", defaultValues.Key, 40, GetFieldPlaceholder("Keys"))
 	keysField.SetAutocompleteFunc(sf.createSSHKeyAutocomplete())
 
-	// Tags field
+	authMethodOptions := []string{i18n.T("auth.method.key"), i18n.T("auth.method.password"), i18n.T("auth.method.key_password")}
+	authMethodIndex := 0
+	if defaultValues.Password != "" {
+		if defaultValues.Key != "" {
+			authMethodIndex = 2
+		} else {
+			authMethodIndex = 1
+		}
+	}
+	sf.addDropDownWithHelp(form, "AuthMethod:", "AuthMethod", authMethodOptions, authMethodIndex)
+
+	sf.addValidatedInputField(form, "Password:", "Password", defaultValues.Password, 40, GetFieldPlaceholder("Password"))
+
+	loginModeOptions := []string{i18n.T("auth.login_mode.interactive"), i18n.T("auth.login_mode.batch"), i18n.T("auth.login_mode.auto")}
+	loginModeIndex := 2
+	sf.addDropDownWithHelp(form, "LoginMode:", "LoginMode", loginModeOptions, loginModeIndex)
+
 	sf.addValidatedInputField(form, "Tags:", "Tags", defaultValues.Tags, 30, GetFieldPlaceholder("Tags"))
 
-	// Add save and cancel buttons
-	form.AddButton("Save", sf.handleSaveButton)
-	form.AddButton("Cancel", sf.handleCancel)
+	form.AddButton(i18n.T("form.btn.save"), sf.handleSaveButton)
+	form.AddButton(i18n.T("form.btn.cancel"), sf.handleCancel)
 
-	// Set up form-level input capture for shortcuts
 	sf.setupFormShortcuts(form)
 
 	sf.forms["Basic"] = form
@@ -1773,14 +1697,14 @@ func (sf *ServerForm) createAdvancedForm() {
 }
 
 type ServerFormData struct {
-	Alias string
-	Host  string
-	User  string
-	Port  string
-	Key   string
-	Tags  string
+	Alias    string
+	Host     string
+	User     string
+	Port     string
+	Key      string
+	Tags     string
+	Password string
 
-	// Connection and proxy settings
 	ProxyJump            string
 	ProxyCommand         string
 	RemoteCommand        string
@@ -1793,33 +1717,27 @@ type ServerFormData struct {
 	AddressFamily        string
 	ExitOnForwardFailure string
 	IPQoS                string
-	// Hostname canonicalization
+
 	CanonicalizeHostname        string
 	CanonicalDomains            string
 	CanonicalizeFallbackLocal   string
 	CanonicalizeMaxDots         string
 	CanonicalizePermittedCNAMEs string
 
-	// Port forwarding
 	LocalForward        string
 	RemoteForward       string
 	DynamicForward      string
 	ClearAllForwardings string
 	GatewayPorts        string
 
-	// Authentication and key management
-	// Public key
 	PubkeyAuthentication string
 	IdentitiesOnly       string
-	// SSH Agent
-	AddKeysToAgent string
-	IdentityAgent  string
-	// Password & Interactive
+	AddKeysToAgent       string
+	IdentityAgent        string
 	PasswordAuthentication       string
 	KbdInteractiveAuthentication string
 	NumberOfPasswordPrompts      string
-	// Advanced
-	PreferredAuthentications string
+	PreferredAuthentications     string
 
 	// Agent and X11 forwarding
 	ForwardAgent      string
