@@ -171,9 +171,16 @@ func (s *serverService) SSH(alias string) error {
 	cmd := exec.Command("ssh", alias)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	var stderrBuf strings.Builder
+	cmd.Stderr = &stderrBuf
+
 	if err := cmd.Run(); err != nil {
 		s.logger.Errorw("ssh command failed", "alias", alias, "error", err)
+		errMsg := strings.TrimSpace(stderrBuf.String())
+		if errMsg != "" {
+			return fmt.Errorf("%w: %s", err, errMsg)
+		}
 		return err
 	}
 
@@ -194,9 +201,16 @@ func (s *serverService) SSHWithArgs(alias string, extraArgs []string) error {
 	cmd := exec.Command("ssh", args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	var stderrBuf strings.Builder
+	cmd.Stderr = &stderrBuf
+
 	if err := cmd.Run(); err != nil {
 		s.logger.Errorw("ssh (with args) failed", "alias", alias, "error", err)
+		errMsg := strings.TrimSpace(stderrBuf.String())
+		if errMsg != "" {
+			return fmt.Errorf("%w: %s", err, errMsg)
+		}
 		return err
 	}
 	if err := s.serverRepository.RecordSSH(alias); err != nil {
@@ -403,17 +417,25 @@ func (s *serverService) SSHWithPassword(server domain.Server) error {
 	}
 
 	// Build the sshpass command
-	// Format: sshpass -p <password> <ssh_command>
 	sshCmd := s.buildSSHPassCommand(server, sshpassPath)
 
-	// Execute the command with all stdio connected for interactive terminal
+	// Execute the command, capture stderr for error reporting
 	cmd := exec.Command("sh", "-c", sshCmd)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	var stderrBuf strings.Builder
+	cmd.Stderr = &stderrBuf
 
 	if err := cmd.Run(); err != nil {
 		s.logger.Errorw("ssh with password failed", "alias", server.Alias, "error", err)
+		// Include stderr output in the error message
+		errMsg := stderrBuf.String()
+		if errMsg != "" {
+			// Strip trailing newlines and trim
+			errMsg = strings.TrimSpace(errMsg)
+			return fmt.Errorf("%w: %s", err, errMsg)
+		}
 		return err
 	}
 

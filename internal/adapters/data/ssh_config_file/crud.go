@@ -185,12 +185,12 @@ func (r *Repository) createHostFromServer(server domain.Server) *ssh_config.Host
 	// Debugging
 	r.addKVNodeIfNotEmpty(host, "LogLevel", server.LogLevel)
 
-	// Custom lazyssh fields (not real SSH options)
+	// Custom lazyssh fields - stored as comments so SSH ignores them
 	if server.AuthMethod != "" {
-		r.addKVNodeIfNotEmpty(host, "LazySshAuthMethod", server.AuthMethod)
+		r.addCommentNode(host, "# lazyssh-auth-method: "+server.AuthMethod)
 	}
 	if server.Password != "" {
-		r.addKVNodeIfNotEmpty(host, "LazySshPassword", server.Password)
+		r.addCommentNode(host, "# lazyssh-password: "+server.Password)
 	}
 
 	return host
@@ -208,6 +208,14 @@ func (r *Repository) addKVNodeIfNotEmpty(host *ssh_config.Host, key, value strin
 		LeadingSpace: 4,
 	}
 	r.insertKVNodeAfterLastKV(host, kvNode)
+}
+
+// addCommentNode adds a comment node to the host (SSH ignores comments).
+func (r *Repository) addCommentNode(host *ssh_config.Host, comment string) {
+	commentNode := &ssh_config.Empty{
+		Comment: comment,
+	}
+	host.Nodes = append(host.Nodes, commentNode)
 }
 
 // insertKVNodeAfterLastKV inserts a KV node immediately after the last existing KV node in the host.
@@ -493,8 +501,6 @@ func (r *Repository) getProperKeyCase(key string) string {
 		"setenv":                          "SetEnv",
 		"loglevel":                        "LogLevel",
 		"batchmode":                       "BatchMode",
-		"lazysshauthmethod":               "LazySshAuthMethod",
-		"lazysshpassword":                 "LazySshPassword",
 	}
 
 	if properCase, exists := keyMap[strings.ToLower(key)]; exists {

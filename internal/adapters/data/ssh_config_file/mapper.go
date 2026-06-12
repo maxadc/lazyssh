@@ -50,17 +50,31 @@ func (r *Repository) toDomainServer(cfg *ssh_config.Config) []domain.Server {
 
 		for _, node := range host.Nodes {
 			kvNode, ok := node.(*ssh_config.KV)
-			if !ok {
+			if ok {
+				r.mapKVToServer(&server, kvNode)
 				continue
 			}
-
-			r.mapKVToServer(&server, kvNode)
+// Read custom lazyssh fields from comments
+		commentNode, ok := node.(*ssh_config.Empty)
+		if ok {
+			r.mapCommentToServer(&server, commentNode.Comment)
+		}
 		}
 
 		servers = append(servers, server)
 	}
 
 	return servers
+}
+
+// mapCommentToServer reads custom lazyssh fields from comment lines.
+func (r *Repository) mapCommentToServer(server *domain.Server, comment string) {
+	switch {
+	case strings.HasPrefix(comment, "# lazyssh-auth-method: "):
+		server.AuthMethod = strings.TrimSpace(comment[len("# lazyssh-auth-method: "):])
+	case strings.HasPrefix(comment, "# lazyssh-password: "):
+		server.Password = strings.TrimSpace(comment[len("# lazyssh-password: "):])
+	}
 }
 
 // mapKVToServer maps an ssh_config.KV node to the corresponding fields in domain.Server.
@@ -104,10 +118,6 @@ func (r *Repository) mapBasicConfig(server *domain.Server, key, value string) bo
 		}
 	case "identityfile":
 		server.IdentityFiles = append(server.IdentityFiles, value)
-	case "lazysshauthmethod":
-		server.AuthMethod = value
-	case "lazysshpassword":
-		server.Password = value
 	default:
 		return false
 	}
