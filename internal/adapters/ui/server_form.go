@@ -2331,6 +2331,8 @@ func (sf *ServerForm) dataToServer(data ServerFormData) domain.Server {
 		Port:                 port,
 		IdentityFiles:        keys,
 		Tags:                 tags,
+		AuthMethod:           data.AuthMethod,
+		Password:             data.Password,
 		ProxyJump:            data.ProxyJump,
 		ProxyCommand:         data.ProxyCommand,
 		RemoteCommand:        data.RemoteCommand,
