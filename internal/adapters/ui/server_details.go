@@ -39,7 +39,7 @@ func (sd *ServerDetails) build() {
 	sd.TextView.SetDynamicColors(true).
 		SetWrap(true).
 		SetBorder(true).
-		SetTitle(" Details ").
+		SetTitle(T.DetailsTitle).
 		SetTitleAlign(tview.AlignCenter).
 		SetBorderColor(tcell.Color238).
 		SetTitleColor(tcell.Color250)
@@ -60,17 +60,16 @@ func renderTagChips(tags []string) string {
 func (sd *ServerDetails) UpdateServer(server domain.Server) {
 	lastSeen := server.LastSeen.Format("2006-01-02 15:04:05")
 	if server.LastSeen.IsZero() {
-		lastSeen = "Never"
+		lastSeen = T.NeverSeen
 	}
 	serverKey := strings.Join(server.IdentityFiles, ", ")
 
-	pinnedStr := "true"
+	pinnedStr := T.YesOption
 	if server.PinnedAt.IsZero() {
-		pinnedStr = "false"
+		pinnedStr = T.NoOption
 	}
 	tagsText := renderTagChips(server.Tags)
 
-	// Basic information
 	aliasText := strings.Join(server.Aliases, ", ")
 
 	userText := server.User
@@ -83,10 +82,10 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 	}
 
 	text := fmt.Sprintf(
-		"[::b]%s[-]\n\n[::b]Basic Settings:[-]\n  Host: [white]%s[-]\n  User: [white]%s[-]\n  Port: [white]%s[-]\n  Key:  [white]%s[-]\n  Tags: %s\n  Pinned: [white]%s[-]\n  Last SSH: %s\n  SSH Count: [white]%d[-]\n",
-		aliasText, hostText, userText, portText,
-		serverKey, tagsText, pinnedStr,
-		lastSeen, server.SSHCount)
+		"[::b]%s[-]\n\n[::b]%s[-]\n  %s: [white]%s[-]\n  %s: [white]%s[-]\n  %s: [white]%s[-]\n  %s:  [white]%s[-]\n  %s: %s\n  %s: [white]%s[-]\n  %s: %s\n  %s: [white]%d[-]\n",
+		aliasText, T.BasicSettings, T.HostLabel, hostText, T.UserLabel, userText, T.PortLabel, portText,
+		T.KeyLabel, serverKey, T.TagsLabelDetail, tagsText, T.PinnedLabel, pinnedStr,
+		T.LastSSHLabel, lastSeen, T.SSHCountLabel, server.SSHCount)
 
 	// Advanced settings section (only show non-empty fields)
 	// Organized by logical grouping for better readability
@@ -103,7 +102,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 	// Create field groups for better organization and future extensibility
 	groups := []fieldGroup{
 		{
-			name: "Connection & Proxy",
+			name: GetDetailGroupName("Connection & Proxy"),
 			fields: []fieldEntry{
 				{"ProxyJump", server.ProxyJump},
 				{"ProxyCommand", server.ProxyCommand},
@@ -133,7 +132,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 			},
 		},
 		{
-			name: "Authentication",
+			name: GetDetailGroupName("Authentication"),
 			fields: []fieldEntry{
 				{"PubkeyAuthentication", server.PubkeyAuthentication},
 				{"PubkeyAcceptedAlgorithms", server.PubkeyAcceptedAlgorithms},
@@ -148,7 +147,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 			},
 		},
 		{
-			name: "Forwarding",
+			name: GetDetailGroupName("Forwarding"),
 			fields: []fieldEntry{
 				{"ForwardAgent", server.ForwardAgent},
 				{"ForwardX11", server.ForwardX11},
@@ -161,7 +160,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 			},
 		},
 		{
-			name: "Security & Cryptography",
+			name: GetDetailGroupName("Security & Cryptography"),
 			fields: []fieldEntry{
 				{"StrictHostKeyChecking", server.StrictHostKeyChecking},
 				{"CheckHostIP", server.CheckHostIP},
@@ -178,7 +177,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 			},
 		},
 		{
-			name: "Environment & Execution",
+			name: GetDetailGroupName("Environment & Execution"),
 			fields: []fieldEntry{
 				{"LocalCommand", server.LocalCommand},
 				{"PermitLocalCommand", server.PermitLocalCommand},
@@ -188,7 +187,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 			},
 		},
 		{
-			name: "Debugging",
+			name: GetDetailGroupName("Debugging"),
 			fields: []fieldEntry{
 				{"LogLevel", server.LogLevel},
 			},
@@ -197,7 +196,7 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 
 	// Build advanced settings text without group labels for cleaner display
 	hasAdvanced := false
-	advancedText := "\n[::b]Advanced Settings:[-]\n"
+	advancedText := "\n[::b]" + T.AdvancedSettings + "[-]\n"
 
 	for _, group := range groups {
 		for _, field := range group.fields {
@@ -213,11 +212,11 @@ func (sd *ServerDetails) UpdateServer(server domain.Server) {
 	}
 
 	// Commands list
-	text += "\n[::b]Commands:[-]\n  Enter: SSH connect\n  f: Port forward\n  x: Stop forwarding\n  c: Copy SSH command\n  g: Ping server\n  r: Refresh list\n  a: Add new server\n  e: Edit entry\n  t: Edit tags\n  d: Delete entry\n  p: Pin/Unpin"
+	text += T.CommandsText()
 
 	sd.TextView.SetText(text)
 }
 
 func (sd *ServerDetails) ShowEmpty() {
-	sd.TextView.SetText("No servers match the current filter.")
+	sd.TextView.SetText(T.NoServersMatch)
 }

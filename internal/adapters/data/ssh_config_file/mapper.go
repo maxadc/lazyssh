@@ -104,6 +104,10 @@ func (r *Repository) mapBasicConfig(server *domain.Server, key, value string) bo
 		}
 	case "identityfile":
 		server.IdentityFiles = append(server.IdentityFiles, value)
+	case "lazysshauthmethod":
+		server.AuthMethod = value
+	case "lazysshpassword":
+		server.Password = value
 	default:
 		return false
 	}

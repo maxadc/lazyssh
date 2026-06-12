@@ -33,6 +33,18 @@ import (
 	"go.uber.org/zap"
 )
 
+// SSH config value constants
+const (
+	sshYes   = "yes"
+	sshNo    = "no"
+	sshForce = "force"
+	sshAuto  = "auto"
+
+	// SessionType values
+	sessionTypeNone      = "none"
+	sessionTypeSubsystem = "subsystem"
+)
+
 type serverService struct {
 	serverRepository ports.ServerRepository
 	logger           *zap.SugaredLogger
@@ -376,4 +388,373 @@ func resolveSSHDestination(alias string) (string, int, bool) {
 		port = 22
 	}
 	return host, port, true
+}
+
+// SSHWithPassword connects to the server using sshpass for password-based authentication.
+// It captures the stderr output to provide detailed error messages on failure.
+func (s *serverService) SSHWithPassword(server domain.Server) error {
+	s.logger.Infow("ssh with password start", "alias", server.Alias)
+
+	// Check if sshpass is available
+	sshpassPath, err := exec.LookPath("sshpass")
+	if err != nil {
+		s.logger.Errorw("sshpass not found", "error", err)
+		return fmt.Errorf("sshpass not found in PATH")
+	}
+
+	// Build the sshpass command
+	// Format: sshpass -p <password> <ssh_command>
+	sshCmd := s.buildSSHPassCommand(server, sshpassPath)
+
+	// Execute the command with all stdio connected for interactive terminal
+	cmd := exec.Command("sh", "-c", sshCmd)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		s.logger.Errorw("ssh with password failed", "alias", server.Alias, "error", err)
+		return err
+	}
+
+	if err := s.serverRepository.RecordSSH(server.Alias); err != nil {
+		s.logger.Errorw("failed to record ssh metadata", "alias", server.Alias, "error", err)
+	}
+
+	s.logger.Infow("ssh with password end", "alias", server.Alias)
+	return nil
+}
+
+// buildSSHPassCommand constructs the full sshpass command string for password auth.
+func (s *serverService) buildSSHPassCommand(server domain.Server, sshpassPath string) string {
+	// Build base ssh command parts
+	parts := []string{fmt.Sprintf("%q", sshpassPath), "-p", quoteShellArg(server.Password), "ssh"}
+
+	// Add proxy and connection options
+	s.addProxySSHOptions(&parts, server)
+	s.addConnectionTimingSSHOptions(&parts, server)
+
+	// Add port forwarding options
+	s.addPortForwardingSSHOptions(&parts, server)
+
+	// Add authentication options
+	s.addAuthSSHOptions(&parts, server)
+
+	// Add agent and forwarding options
+	s.addForwardingSSHOptions(&parts, server)
+
+	// Add connection multiplexing options
+	s.addMultiplexingSSHOptions(&parts, server)
+
+	// Add connection reliability options
+	s.addConnectionSSHOptions(&parts, server)
+
+	// Add security options
+	s.addSecuritySSHOptions(&parts, server)
+
+	// Add command execution options
+	s.addCommandExecutionSSHOptions(&parts, server)
+
+	// Add environment options
+	s.addEnvironmentSSHOptions(&parts, server)
+
+	// Add TTY and logging options
+	s.addTTYAndLoggingSSHOptions(&parts, server)
+
+	// Port option
+	if server.Port != 0 && server.Port != 22 {
+		parts = append(parts, "-p", fmt.Sprintf("%d", server.Port))
+	}
+
+	// Identity file option
+	if len(server.IdentityFiles) > 0 {
+		for _, keyFile := range server.IdentityFiles {
+			parts = append(parts, "-i", quoteShellArg(keyFile))
+		}
+	}
+
+	// Host specification
+	userHost := ""
+	switch {
+	case server.User != "" && server.Host != "":
+		userHost = fmt.Sprintf("%s@%s", server.User, server.Host)
+	case server.Host != "":
+		userHost = server.Host
+	default:
+		userHost = server.Alias
+	}
+	parts = append(parts, userHost)
+
+	// RemoteCommand (must come after the host)
+	if server.RemoteCommand != "" {
+		if server.RemoteCommand == sessionTypeNone {
+			parts = append(parts, "-o", "RemoteCommand=none")
+		} else {
+			parts = append(parts, quoteShellArg(server.RemoteCommand))
+		}
+	}
+
+	return strings.Join(parts, " ")
+}
+
+// Helper methods to add SSH options for sshpass command building
+
+func (s *serverService) addProxySSHOptions(parts *[]string, server domain.Server) {
+	if server.ProxyJump != "" {
+		*parts = append(*parts, "-J", quoteShellArg(server.ProxyJump))
+	}
+	if server.ProxyCommand != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ProxyCommand=%s", quoteShellArg(server.ProxyCommand)))
+	}
+}
+
+func (s *serverService) addConnectionTimingSSHOptions(parts *[]string, server domain.Server) {
+	if server.ConnectTimeout != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ConnectTimeout=%s", server.ConnectTimeout))
+	}
+	if server.ConnectionAttempts != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ConnectionAttempts=%s", server.ConnectionAttempts))
+	}
+	if server.BindAddress != "" {
+		*parts = append(*parts, "-b", server.BindAddress)
+	}
+	if server.BindInterface != "" {
+		*parts = append(*parts, "-B", server.BindInterface)
+	}
+	if server.AddressFamily != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("AddressFamily=%s", server.AddressFamily))
+	}
+	if server.IPQoS != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("IPQoS=%s", server.IPQoS))
+	}
+	if server.CanonicalizeHostname != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("CanonicalizeHostname=%s", server.CanonicalizeHostname))
+	}
+	if server.CanonicalDomains != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("CanonicalDomains=%s", server.CanonicalDomains))
+	}
+	if server.CanonicalizeFallbackLocal != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("CanonicalizeFallbackLocal=%s", server.CanonicalizeFallbackLocal))
+	}
+	if server.CanonicalizeMaxDots != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("CanonicalizeMaxDots=%s", server.CanonicalizeMaxDots))
+	}
+	if server.CanonicalizePermittedCNAMEs != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("CanonicalizePermittedCNAMEs=%s", quoteShellArg(server.CanonicalizePermittedCNAMEs)))
+	}
+}
+
+func (s *serverService) addPortForwardingSSHOptions(parts *[]string, server domain.Server) {
+	for _, forward := range server.LocalForward {
+		*parts = append(*parts, "-L", forward)
+	}
+	for _, forward := range server.RemoteForward {
+		*parts = append(*parts, "-R", forward)
+	}
+	for _, forward := range server.DynamicForward {
+		*parts = append(*parts, "-D", forward)
+	}
+	if server.ClearAllForwardings == sshYes {
+		*parts = append(*parts, "-o", "ClearAllForwardings=yes")
+	}
+	if server.ExitOnForwardFailure == sshYes {
+		*parts = append(*parts, "-o", "ExitOnForwardFailure=yes")
+	}
+	if server.GatewayPorts != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("GatewayPorts=%s", server.GatewayPorts))
+	}
+}
+
+func (s *serverService) addAuthSSHOptions(parts *[]string, server domain.Server) {
+	if server.PubkeyAuthentication != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("PubkeyAuthentication=%s", server.PubkeyAuthentication))
+	}
+	if server.PubkeyAcceptedAlgorithms != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("PubkeyAcceptedAlgorithms=%s", server.PubkeyAcceptedAlgorithms))
+	}
+	if server.HostbasedAcceptedAlgorithms != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("HostbasedAcceptedAlgorithms=%s", server.HostbasedAcceptedAlgorithms))
+	}
+	if server.PasswordAuthentication != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("PasswordAuthentication=%s", server.PasswordAuthentication))
+	}
+	if server.PreferredAuthentications != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("PreferredAuthentications=%s", server.PreferredAuthentications))
+	}
+	if server.IdentitiesOnly != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("IdentitiesOnly=%s", server.IdentitiesOnly))
+	}
+	if server.AddKeysToAgent != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("AddKeysToAgent=%s", server.AddKeysToAgent))
+	}
+	if server.IdentityAgent != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("IdentityAgent=%s", quoteShellArg(server.IdentityAgent)))
+	}
+	if server.KbdInteractiveAuthentication != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("KbdInteractiveAuthentication=%s", server.KbdInteractiveAuthentication))
+	}
+	if server.NumberOfPasswordPrompts != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("NumberOfPasswordPrompts=%s", server.NumberOfPasswordPrompts))
+	}
+}
+
+func (s *serverService) addForwardingSSHOptions(parts *[]string, server domain.Server) {
+	if server.ForwardAgent != "" {
+		if server.ForwardAgent == sshYes {
+			*parts = append(*parts, "-A")
+		} else if server.ForwardAgent == sshNo {
+			*parts = append(*parts, "-a")
+		}
+	}
+	if server.ForwardX11 != "" {
+		if server.ForwardX11 == sshYes {
+			*parts = append(*parts, "-X")
+		} else if server.ForwardX11 == sshNo {
+			*parts = append(*parts, "-x")
+		}
+	}
+	if server.ForwardX11Trusted == sshYes {
+		*parts = append(*parts, "-Y")
+	}
+}
+
+func (s *serverService) addMultiplexingSSHOptions(parts *[]string, server domain.Server) {
+	if server.ControlMaster != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ControlMaster=%s", server.ControlMaster))
+	}
+	if server.ControlPath != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ControlPath=%s", quoteShellArg(server.ControlPath)))
+	}
+	if server.ControlPersist != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ControlPersist=%s", server.ControlPersist))
+	}
+}
+
+func (s *serverService) addConnectionSSHOptions(parts *[]string, server domain.Server) {
+	if server.ServerAliveInterval != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ServerAliveInterval=%s", server.ServerAliveInterval))
+	}
+	if server.ServerAliveCountMax != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("ServerAliveCountMax=%s", server.ServerAliveCountMax))
+	}
+	if server.Compression == sshYes {
+		*parts = append(*parts, "-C")
+	}
+	if server.TCPKeepAlive != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("TCPKeepAlive=%s", server.TCPKeepAlive))
+	}
+	if server.BatchMode == sshYes {
+		*parts = append(*parts, "-o", "BatchMode=yes")
+	}
+}
+
+func (s *serverService) addSecuritySSHOptions(parts *[]string, server domain.Server) {
+	if server.StrictHostKeyChecking != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("StrictHostKeyChecking=%s", server.StrictHostKeyChecking))
+	}
+	if server.CheckHostIP != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("CheckHostIP=%s", server.CheckHostIP))
+	}
+	if server.FingerprintHash != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("FingerprintHash=%s", server.FingerprintHash))
+	}
+	if server.UserKnownHostsFile != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("UserKnownHostsFile=%s", quoteShellArg(server.UserKnownHostsFile)))
+	}
+	if server.HostKeyAlgorithms != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("HostKeyAlgorithms=%s", server.HostKeyAlgorithms))
+	}
+	if server.MACs != "" {
+		*parts = append(*parts, "-m", server.MACs)
+	}
+	if server.Ciphers != "" {
+		*parts = append(*parts, "-c", server.Ciphers)
+	}
+	if server.KexAlgorithms != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("KexAlgorithms=%s", server.KexAlgorithms))
+	}
+	if server.VerifyHostKeyDNS != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("VerifyHostKeyDNS=%s", server.VerifyHostKeyDNS))
+	}
+	if server.UpdateHostKeys != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("UpdateHostKeys=%s", server.UpdateHostKeys))
+	}
+	if server.HashKnownHosts != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("HashKnownHosts=%s", server.HashKnownHosts))
+	}
+	if server.VisualHostKey != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("VisualHostKey=%s", server.VisualHostKey))
+	}
+}
+
+func (s *serverService) addCommandExecutionSSHOptions(parts *[]string, server domain.Server) {
+	if server.LocalCommand != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("LocalCommand=%s", quoteShellArg(server.LocalCommand)))
+	}
+	if server.PermitLocalCommand != "" {
+		*parts = append(*parts, "-o", fmt.Sprintf("PermitLocalCommand=%s", server.PermitLocalCommand))
+	}
+	if server.EscapeChar != "" {
+		*parts = append(*parts, "-e", server.EscapeChar)
+	}
+}
+
+func (s *serverService) addEnvironmentSSHOptions(parts *[]string, server domain.Server) {
+	for _, env := range server.SendEnv {
+		*parts = append(*parts, "-o", fmt.Sprintf("SendEnv=%s", env))
+	}
+	for _, env := range server.SetEnv {
+		*parts = append(*parts, "-o", fmt.Sprintf("SetEnv=%s", quoteShellArg(env)))
+	}
+}
+
+func (s *serverService) addTTYAndLoggingSSHOptions(parts *[]string, server domain.Server) {
+	if server.RequestTTY != "" {
+		switch server.RequestTTY {
+		case sshYes:
+			*parts = append(*parts, "-t")
+		case sshNo:
+			*parts = append(*parts, "-T")
+		case sshForce:
+			*parts = append(*parts, "-tt")
+		case sshAuto:
+			// auto is the default behavior, no flag needed
+		default:
+			*parts = append(*parts, "-o", fmt.Sprintf("RequestTTY=%s", server.RequestTTY))
+		}
+	}
+
+	if server.LogLevel != "" {
+		switch strings.ToLower(server.LogLevel) {
+		case "quiet":
+			*parts = append(*parts, "-q")
+		case "verbose":
+			*parts = append(*parts, "-v")
+		case "debug", "debug1":
+			*parts = append(*parts, "-v")
+		case "debug2":
+			*parts = append(*parts, "-vv")
+		case "debug3":
+			*parts = append(*parts, "-vvv")
+		}
+	}
+
+	if server.SessionType != "" {
+		switch server.SessionType {
+		case sessionTypeNone:
+			*parts = append(*parts, "-N")
+		case sessionTypeSubsystem:
+			*parts = append(*parts, "-s")
+		default:
+			*parts = append(*parts, "-o", fmt.Sprintf("SessionType=%s", server.SessionType))
+		}
+	}
+}
+
+// quoteShellArg returns the value quoted if it contains shell-special characters.
+func quoteShellArg(val string) string {
+	if strings.ContainsAny(val, " \t\n\"'\\$!") {
+		return fmt.Sprintf("'%s'", strings.ReplaceAll(val, "'", "'\\''"))
+	}
+	return val
 }

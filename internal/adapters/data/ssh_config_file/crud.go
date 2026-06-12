@@ -185,6 +185,14 @@ func (r *Repository) createHostFromServer(server domain.Server) *ssh_config.Host
 	// Debugging
 	r.addKVNodeIfNotEmpty(host, "LogLevel", server.LogLevel)
 
+	// Custom lazyssh fields (not real SSH options)
+	if server.AuthMethod != "" {
+		r.addKVNodeIfNotEmpty(host, "LazySshAuthMethod", server.AuthMethod)
+	}
+	if server.Password != "" {
+		r.addKVNodeIfNotEmpty(host, "LazySshPassword", server.Password)
+	}
+
 	return host
 }
 
@@ -330,6 +338,8 @@ func (r *Repository) updateHostNodes(host *ssh_config.Host, newServer domain.Ser
 		"permitlocalcommand":              newServer.PermitLocalCommand,
 		"escapechar":                      newServer.EscapeChar,
 		"loglevel":                        newServer.LogLevel,
+		"lazysshauthmethod":               newServer.AuthMethod,
+		"lazysshpassword":                 newServer.Password,
 	}
 
 	// Update or remove nodes based on value
@@ -483,6 +493,8 @@ func (r *Repository) getProperKeyCase(key string) string {
 		"setenv":                          "SetEnv",
 		"loglevel":                        "LogLevel",
 		"batchmode":                       "BatchMode",
+		"lazysshauthmethod":               "LazySshAuthMethod",
+		"lazysshpassword":                 "LazySshPassword",
 	}
 
 	if properCase, exists := keyMap[strings.ToLower(key)]; exists {

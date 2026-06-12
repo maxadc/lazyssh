@@ -1,6 +1,6 @@
 module github.com/Adembc/lazyssh
 
-go 1.24.6
+go 1.24.4
 
 replace github.com/kevinburke/ssh_config => github.com/adembc/ssh_config v1.4.2
 

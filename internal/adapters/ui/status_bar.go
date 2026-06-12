@@ -20,7 +20,7 @@ import (
 )
 
 func DefaultStatusText() string {
-	return "[white]↑↓[-] Navigate  • [white]Enter[-] SSH  • [white]f[-] Forward  • [white]x[-] Stop Forward  • [white]c[-] Copy SSH  • [white]a[-] Add  • [white]e[-] Edit  • [white]g[-] Ping  • [white]d[-] Delete  • [white]p[-] Pin/Unpin  • [white]/[-] Search  • [white]q[-] Quit"
+	return "[white]↑↓[-] " + T.StatusNavigate + "  • [white]Enter[-] " + T.StatusSSH + "  • [white]f[-] " + T.StatusForward + "  • [white]x[-] " + T.StatusStopForward + "  • [white]c[-] " + T.StatusCopySSH + "  • [white]a[-] " + T.StatusAdd + "  • [white]e[-] " + T.StatusEdit + "  • [white]g[-] " + T.StatusPing + "  • [white]d[-] " + T.StatusDelete + "  • [white]p[-] " + T.StatusPin + "  • [white]/[-] " + T.StatusSearch + "  • [white]q[-] " + T.StatusQuit
 }
 
 func NewStatusBar() *tview.TextView {

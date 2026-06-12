@@ -34,15 +34,15 @@ const (
 func (m SortMode) String() string {
 	switch m {
 	case SortByAliasAsc:
-		return "Alias ↑"
+		return T.AliasAsc
 	case SortByAliasDesc:
-		return "Alias ↓"
+		return T.AliasDesc
 	case SortByLastSeenAsc:
-		return "Last SSH ↑"
+		return T.LastSeenAsc
 	case SortByLastSeenDesc:
-		return "Last SSH ↓"
+		return T.LastSeenDesc
 	default:
-		return "Alias ↑"
+		return T.AliasAsc
 	}
 }
 

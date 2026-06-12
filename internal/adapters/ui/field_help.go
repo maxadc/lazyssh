@@ -35,19 +35,6 @@ const (
 	HelpModeFull                           // Detailed help with all info
 )
 
-// GetFieldHelp returns help information for a specific field
-func GetFieldHelp(fieldName string) *FieldHelp {
-	if help, exists := fieldHelpData[fieldName]; exists {
-		// Update default value from centralized source
-		defaultValue := GetSSHFieldDefault(fieldName)
-		if defaultValue != "" {
-			help.Default = formatDefaultValue(fieldName, defaultValue)
-		}
-		return &help
-	}
-	return nil
-}
-
 // formatDefaultValue formats the default value for display in help
 func formatDefaultValue(fieldName, value string) string {
 	// Special formatting for certain fields

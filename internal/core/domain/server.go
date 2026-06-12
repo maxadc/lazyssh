@@ -67,8 +67,13 @@ type Server struct {
 	IdentityAgent  string
 	// Password & Interactive
 	PasswordAuthentication       string
-	KbdInteractiveAuthentication string // yes, no
+	Password                     string // password for password-based auth (not stored in ssh_config)
+	KbdInteractiveAuthentication string
 	NumberOfPasswordPrompts      string
+
+	// AuthMethod: "key" = key-based, "password" = password-based, "" = auto
+	AuthMethod string
+
 	// Advanced
 	PreferredAuthentications string
 

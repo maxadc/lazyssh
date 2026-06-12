@@ -132,9 +132,9 @@ func (t *tui) handleCopyCommand() {
 	if server, ok := t.serverList.GetSelectedServer(); ok {
 		cmd := BuildSSHCommand(server)
 		if err := clipboard.WriteAll(cmd); err == nil {
-			t.showStatusTemp("Copied: " + cmd)
+			t.showStatusTemp(fmt.Sprintf(T.Copied, cmd))
 		} else {
-			t.showStatusTemp("Failed to copy to clipboard")
+			t.showStatusTemp(T.CopyFailed)
 		}
 	}
 }
@@ -222,9 +222,18 @@ func (t *tui) handleReturnToSearch() {
 
 func (t *tui) handleServerConnect() {
 	if server, ok := t.serverList.GetSelectedServer(); ok {
-
 		t.app.Suspend(func() {
-			_ = t.serverService.SSH(server.Alias)
+			var err error
+			// Check if password auth is selected
+			if server.AuthMethod == "password" && server.Password != "" {
+				err = t.serverService.SSHWithPassword(server)
+			} else {
+				err = t.serverService.SSH(server.Alias)
+			}
+			if err != nil {
+				// Show error message to user
+				t.showSSHError(server.Alias, err)
+			}
 		})
 		t.refreshServerList()
 	}
@@ -266,8 +275,8 @@ func (t *tui) handleServerSave(server domain.Server, original *domain.Server) {
 	if err != nil {
 		// Stay on form; show a small modal with the error
 		modal := tview.NewModal().
-			SetText(fmt.Sprintf("Save failed: %v", err)).
-			AddButtons([]string{"Close"}).
+			SetText(fmt.Sprintf(T.SaveFailed, err)).
+			AddButtons([]string{T.CloseButton}).
 			SetDoneFunc(func(buttonIndex int, buttonLabel string) { t.handleModalClose() })
 		t.app.SetRoot(modal, true)
 		return
@@ -291,18 +300,18 @@ func (t *tui) handlePingSelected() {
 	if server, ok := t.serverList.GetSelectedServer(); ok {
 		alias := server.Alias
 
-		t.showStatusTemp(fmt.Sprintf("Pinging %s…", alias))
+		t.showStatusTemp(fmt.Sprintf(T.Pinging, alias))
 		go func() {
 			up, dur, err := t.serverService.Ping(server)
 			t.app.QueueUpdateDraw(func() {
 				if err != nil {
-					t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN (%v)", alias, err), "#FF6B6B")
+					t.showStatusTempColor(fmt.Sprintf(T.PingDown, alias, err), "#FF6B6B")
 					return
 				}
 				if up {
-					t.showStatusTempColor(fmt.Sprintf("Ping %s: UP (%s)", alias, dur), "#A0FFA0")
+					t.showStatusTempColor(fmt.Sprintf(T.PingUp, alias, dur), "#A0FFA0")
 				} else {
-					t.showStatusTempColor(fmt.Sprintf("Ping %s: DOWN", alias), "#FF6B6B")
+					t.showStatusTempColor(fmt.Sprintf(T.PingDown, alias, ""), "#FF6B6B")
 				}
 			})
 		}()
@@ -322,13 +331,13 @@ func (t *tui) handleRefreshBackground() {
 		query = t.searchBar.InputField.GetText()
 	}
 
-	t.showStatusTemp("Refreshing…")
+	t.showStatusTemp(T.Refreshing)
 
 	go func(prevIdx int, q string) {
 		servers, err := t.serverService.ListServers(q)
 		if err != nil {
 			t.app.QueueUpdateDraw(func() {
-				t.showStatusTempColor(fmt.Sprintf("Refresh failed: %v", err), "#FF6B6B")
+				t.showStatusTempColor(fmt.Sprintf(T.RefreshFailed, err), "#FF6B6B")
 			})
 			return
 		}
@@ -342,7 +351,7 @@ func (t *tui) handleRefreshBackground() {
 					t.details.UpdateServer(srv)
 				}
 			}
-			t.showStatusTemp(fmt.Sprintf("Refreshed %d servers", len(servers)))
+			t.showStatusTemp(fmt.Sprintf(T.Refreshed, len(servers)))
 		})
 	}(currentIdx, query)
 }
@@ -352,12 +361,11 @@ func (t *tui) handleRefreshBackground() {
 // =============================================================================
 
 func (t *tui) showDeleteConfirmModal(server domain.Server) {
-	msg := fmt.Sprintf("Delete server %s (%s@%s:%d)?\n\nThis action cannot be undone.",
-		server.Alias, server.User, server.Host, server.Port)
+	msg := fmt.Sprintf(T.DeleteConfirmMsg, server.Alias, server.User, server.Host, server.Port) + "\n\n" + T.DeleteCannotUndo
 
 	modal := tview.NewModal().
 		SetText(msg).
-		AddButtons([]string{"[yellow]C[-]ancel", "[yellow]D[-]elete"}).
+		AddButtons([]string{"[yellow]" + T.CancelButton + "[-]", "[yellow]" + T.DeleteButton + "[-]"}).
 		SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 			if buttonIndex == 1 {
 				_ = t.serverService.DeleteServer(server)
@@ -390,13 +398,13 @@ func (t *tui) showDeleteConfirmModal(server domain.Server) {
 func (t *tui) showEditTagsForm(server domain.Server) {
 	form := tview.NewForm()
 	form.SetBorder(true).
-		SetTitle(fmt.Sprintf(" Edit Tags: %s ", server.Alias)).
+		SetTitle(fmt.Sprintf(T.EditTagsTitle, server.Alias)).
 		SetTitleAlign(tview.AlignCenter)
 
 	defaultTags := strings.Join(server.Tags, ", ")
-	form.AddInputField("Tags (comma):", defaultTags, 40, nil, nil)
+	form.AddInputField(T.TagsLabel, defaultTags, 40, nil, nil)
 
-	form.AddButton("Save", func() {
+	form.AddButton(T.SaveButton, func() {
 		text := strings.TrimSpace(form.GetFormItem(0).(*tview.InputField).GetText())
 		var tags []string
 
@@ -412,9 +420,9 @@ func (t *tui) showEditTagsForm(server domain.Server) {
 		// Refresh UI and go back
 		t.refreshServerList()
 		t.returnToMain()
-		t.showStatusTemp("Tags updated")
+		t.showStatusTemp(T.TagsUpdated)
 	})
-	form.AddButton("Cancel", func() { t.returnToMain() })
+	form.AddButton(T.CancelButton, func() { t.returnToMain() })
 	form.SetCancelFunc(func() { t.returnToMain() })
 
 	t.app.SetRoot(form, true)
@@ -429,8 +437,8 @@ func (t *tui) handlePortForward() {
 }
 
 func (t *tui) showPortForwardForm(server domain.Server) {
-	typeChoices := []string{ForwardTypeLocal, ForwardTypeRemote, ForwardTypeDynamic}
-	modeChoices := []string{ForwardModeOnlyForward, ForwardModeForwardSSH}
+	typeChoices := []string{T.ForwardTypeLocal, T.ForwardTypeRemote, T.ForwardTypeDynamic}
+	modeChoices := []string{T.ForwardModeOnly, T.ForwardModeForwardSSH}
 
 	currentTypeIdx := 0
 	currentModeIdx := 0
@@ -441,7 +449,7 @@ func (t *tui) showPortForwardForm(server domain.Server) {
 
 	form := tview.NewForm()
 	form.SetBorder(true).
-		SetTitle(fmt.Sprintf(" Port Forwarding: %s ", server.Alias)).
+		SetTitle(fmt.Sprintf(T.PortForwardTitle, server.Alias)).
 		SetTitleAlign(tview.AlignCenter)
 
 	dd := tview.NewDropDown()
@@ -453,7 +461,7 @@ func (t *tui) showPortForwardForm(server domain.Server) {
 	dd.SetOptions(typeChoices, func(text string, index int) {
 		currentTypeIdx = index
 		// Toggle fields when switching type
-		isDynamic := typeChoices[currentTypeIdx] == ForwardTypeDynamic
+		isDynamic := typeChoices[currentTypeIdx] == T.ForwardTypeDynamic
 		if isDynamic {
 			hostField.SetText("").SetDisabled(true)
 			hostPortField.SetText("").SetDisabled(true)
@@ -463,45 +471,45 @@ func (t *tui) showPortForwardForm(server domain.Server) {
 		}
 	})
 	dd.SetCurrentOption(currentTypeIdx)
-	form.AddFormItem(dd.SetLabel("Type"))
+	form.AddFormItem(dd.SetLabel(T.TypeLabel))
 
-	portField.SetLabel("Port").SetText(portVal).SetFieldWidth(8).SetChangedFunc(func(text string) { portVal = strings.TrimSpace(text) })
+	portField.SetLabel(T.PortLabelForward).SetText(portVal).SetFieldWidth(8).SetChangedFunc(func(text string) { portVal = strings.TrimSpace(text) })
 	form.AddFormItem(portField)
 
-	hostField.SetLabel("Host").SetText(hostVal).SetFieldWidth(40).SetChangedFunc(func(text string) { hostVal = strings.TrimSpace(text) })
+	hostField.SetLabel(T.HostLabelForward).SetText(hostVal).SetFieldWidth(40).SetChangedFunc(func(text string) { hostVal = strings.TrimSpace(text) })
 	form.AddFormItem(hostField)
 
-	hostPortField.SetLabel("Host Port").SetText(hostPortVal).SetFieldWidth(8).SetChangedFunc(func(text string) { hostPortVal = strings.TrimSpace(text) })
+	hostPortField.SetLabel(T.HostPortLabel).SetText(hostPortVal).SetFieldWidth(8).SetChangedFunc(func(text string) { hostPortVal = strings.TrimSpace(text) })
 	form.AddFormItem(hostPortField)
 
-	bindAddrField.SetLabel("Bind Address (optional)").SetText(bindAddrVal).SetFieldWidth(40).SetChangedFunc(func(text string) { bindAddrVal = strings.TrimSpace(text) })
+	bindAddrField.SetLabel(T.BindAddressOptionalLabel).SetText(bindAddrVal).SetFieldWidth(40).SetChangedFunc(func(text string) { bindAddrVal = strings.TrimSpace(text) })
 	form.AddFormItem(bindAddrField)
 
 	mode := tview.NewDropDown().SetOptions(modeChoices, func(text string, index int) { currentModeIdx = index })
 	mode.SetCurrentOption(currentModeIdx)
-	form.AddFormItem(mode.SetLabel("Mode"))
+	form.AddFormItem(mode.SetLabel(T.ModeLabel))
 
-	isDynamic := typeChoices[currentTypeIdx] == ForwardTypeDynamic
+	isDynamic := typeChoices[currentTypeIdx] == T.ForwardTypeDynamic
 	if isDynamic {
 		hostField.SetText("").SetDisabled(true)
 		hostPortField.SetText("").SetDisabled(true)
 	}
 
-	form.AddButton("Start", func() {
+	form.AddButton(T.StartButton, func() {
 		if err := validatePort(portVal); err != nil {
-			t.showStatusTempColor("Invalid port: "+err.Error(), "#FF6B6B")
+			t.showStatusTempColor(fmt.Sprintf(T.InvalidPort, err), "#FF6B6B")
 			return
 		}
 		if bindAddrVal != "" {
 			if err := validateBindAddress(bindAddrVal); err != nil {
-				t.showStatusTempColor("Invalid bind address: "+err.Error(), "#FF6B6B")
+				t.showStatusTempColor(fmt.Sprintf(T.InvalidBindAddress, err), "#FF6B6B")
 				return
 			}
 		}
 
 		ft := typeChoices[currentTypeIdx]
 		var args []string
-		if ft == ForwardTypeDynamic {
+		if ft == T.ForwardTypeDynamic {
 			spec := portVal
 			if bindAddrVal != "" {
 				spec = bindAddrVal + ":" + portVal
@@ -509,37 +517,37 @@ func (t *tui) showPortForwardForm(server domain.Server) {
 			args = append(args, "-D", spec)
 		} else {
 			if err := validateHost(hostVal); err != nil {
-				t.showStatusTempColor("Invalid host: "+err.Error(), "#FF6B6B")
+				t.showStatusTempColor(fmt.Sprintf(T.InvalidHost, err), "#FF6B6B")
 				return
 			}
 			if err := validatePort(hostPortVal); err != nil {
-				t.showStatusTempColor("Invalid host port: "+err.Error(), "#FF6B6B")
+				t.showStatusTempColor(fmt.Sprintf(T.InvalidHostPort, err), "#FF6B6B")
 				return
 			}
 			spec := portVal + ":" + hostVal + ":" + hostPortVal
 			if bindAddrVal != "" {
 				spec = bindAddrVal + ":" + spec
 			}
-			if ft == ForwardTypeLocal {
+			if ft == T.ForwardTypeLocal {
 				args = append(args, "-L", spec)
 			} else {
 				args = append(args, "-R", spec)
 			}
 		}
 
-		onlyForward := modeChoices[currentModeIdx] == ForwardModeOnlyForward
+		onlyForward := modeChoices[currentModeIdx] == T.ForwardModeOnly
 		alias := server.Alias
 		if onlyForward {
 			t.returnToMain()
-			t.showStatusTemp("Starting port forward…")
+			t.showStatusTemp(T.StartingPortForward)
 			go func() {
 				pid, err := t.serverService.StartForward(alias, args)
 				t.app.QueueUpdateDraw(func() {
 					if err != nil {
-						t.showStatusTempColor("Forward failed: "+err.Error(), "#FF6B6B")
+						t.showStatusTempColor(fmt.Sprintf(T.ForwardFailed, err.Error()), "#FF6B6B")
 					} else {
 						t.refreshServerList()
-						t.showStatusTemp(fmt.Sprintf("Port forwarding started (pid %d)", pid))
+						t.showStatusTemp(fmt.Sprintf(T.PortForwardStarted, pid))
 					}
 				})
 			}()
@@ -551,7 +559,7 @@ func (t *tui) showPortForwardForm(server domain.Server) {
 		})
 		t.returnToMain()
 	})
-	form.AddButton("Cancel", func() { t.returnToMain() })
+	form.AddButton(T.CancelButton, func() { t.returnToMain() })
 	form.SetCancelFunc(func() { t.returnToMain() })
 
 	t.app.SetRoot(form, true)
@@ -620,12 +628,44 @@ func (t *tui) handleStopForwarding() {
 			err := t.serverService.StopForwarding(alias)
 			t.app.QueueUpdateDraw(func() {
 				if err != nil {
-					t.showStatusTempColor("Failed to stop forwarding: "+err.Error(), "#FF6B6B")
+					t.showStatusTempColor(fmt.Sprintf(T.StopForwardFailed, err.Error()), "#FF6B6B")
 				} else {
-					t.showStatusTemp("Stopped forwarding for " + alias)
+					t.showStatusTemp(fmt.Sprintf(T.StoppedForwarding, alias))
 				}
 				t.refreshServerList()
 			})
 		}()
 	}
+}
+
+// showSSHError displays a modal with SSH connection error details.
+func (t *tui) showSSHError(alias string, err error) {
+	// Check for sshpass not found error
+	if err.Error() == "sshpass not found in PATH" {
+		modal := tview.NewModal().
+			SetText(fmt.Sprintf("%s: %s", T.SSHConnectionFailed, T.SSHPassNotFound)).
+			AddButtons([]string{T.CloseButton}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) { t.handleModalClose() })
+		t.app.SetRoot(modal, true)
+		return
+	}
+
+	// Check for password authentication failed
+	if strings.Contains(err.Error(), "Permission") ||
+		strings.Contains(err.Error(), "Authentication") ||
+		strings.Contains(err.Error(), "Authentications that are available") {
+		modal := tview.NewModal().
+			SetText(fmt.Sprintf(T.PasswordAuthFailed, err)).
+			AddButtons([]string{T.CloseButton}).
+			SetDoneFunc(func(buttonIndex int, buttonLabel string) { t.handleModalClose() })
+		t.app.SetRoot(modal, true)
+		return
+	}
+
+	// Generic error
+	modal := tview.NewModal().
+		SetText(fmt.Sprintf(T.SSHConnectionFailed, err)).
+		AddButtons([]string{T.CloseButton}).
+		SetDoneFunc(func(buttonIndex int, buttonLabel string) { t.handleModalClose() })
+	t.app.SetRoot(modal, true)
 }

@@ -39,7 +39,7 @@ func NewServerList() *ServerList {
 func (sl *ServerList) build() {
 	sl.List.ShowSecondaryText(false)
 	sl.List.SetBorder(true).
-		SetTitle(" Servers ").
+		SetTitle(T.ServersTitle).
 		SetTitleAlign(tview.AlignCenter).
 		SetBorderColor(tcell.Color238).
 		SetTitleColor(tcell.Color250)

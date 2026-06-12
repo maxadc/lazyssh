@@ -75,7 +75,7 @@ func NewServerForm(mode ServerFormMode, original *domain.Server) *ServerForm {
 		SetScrollable(true)
 	helpPanel.SetBorder(true).
 		SetBorderPadding(0, 0, 1, 1).
-		SetTitle(" Help ").
+		SetTitle(T.HelpTitle).
 		SetTitleAlign(tview.AlignCenter)
 
 	// Create main container for form and help
@@ -91,24 +91,24 @@ func NewServerForm(mode ServerFormMode, original *domain.Server) *ServerForm {
 		original:      original,
 		validation:    NewValidationState(),
 		helpPanel:     helpPanel,
-		helpMode:      HelpModeNormal, // Show help panel by default
+		helpMode:      HelpModeNormal,
 		mainContainer: mainContainer,
 		tabs: []string{
-			"Basic",
-			"Connection",
-			"Forwarding",
-			"Authentication",
-			"Advanced",
+			T.FormTabBasic,
+			T.FormTabConnection,
+			T.FormTabForwarding,
+			T.FormTabAuthentication,
+			T.FormTabAdvanced,
 		},
 		tabAbbrev: map[string]string{
-			"Basic":          "Basic",
-			"Connection":     "Conn",
-			"Forwarding":     "Fwd",
-			"Authentication": "Auth",
-			"Advanced":       "Adv",
+			T.FormTabBasic:          GetTabAbbrev("Basic"),
+			T.FormTabConnection:     GetTabAbbrev("Connection"),
+			T.FormTabForwarding:     GetTabAbbrev("Forwarding"),
+			T.FormTabAuthentication: GetTabAbbrev("Authentication"),
+			T.FormTabAdvanced:       GetTabAbbrev("Advanced"),
 		},
 	}
-	form.currentTab = "Basic"
+	form.currentTab = T.FormTabBasic
 	// Don't build here, wait for version info to be set
 	return form
 }
@@ -172,7 +172,7 @@ func (sf *ServerForm) build() {
 	hintBar := tview.NewTextView().SetDynamicColors(true)
 	hintBar.SetBackgroundColor(tcell.Color235)
 	hintBar.SetTextAlign(tview.AlignCenter)
-	hintBar.SetText("[white]^H/^L[-] Navigate  • [white]^S[-] Save  • [white]Esc[-] Cancel")
+	hintBar.SetText("[white]" + T.FormHintNavigate + "  • [white]" + T.FormHintSave + "[-]  • [white]" + T.FormHintCancel + "[-]")
 
 	// Setup main container - header at top, hint bar at bottom
 	sf.Flex.AddItem(sf.header, 2, 0, false).
@@ -197,9 +197,9 @@ func (sf *ServerForm) build() {
 
 func (sf *ServerForm) titleForMode() string {
 	if sf.mode == ServerFormEdit {
-		return "Edit Server"
+		return T.EditServerTitle
 	}
-	return "Add Server"
+	return T.AddServerTitle
 }
 
 func (sf *ServerForm) getCurrentTabIndex() int {
@@ -440,7 +440,7 @@ func (sf *ServerForm) updateHelp(fieldName string) {
 	sf.currentField = fieldName
 	help := GetFieldHelp(fieldName)
 	if help == nil {
-		sf.helpPanel.SetText("[dim]No help available for this field[-]")
+		sf.helpPanel.SetText("[dim]" + T.NoHelpAvailable + "[-]")
 		return
 	}
 
@@ -453,7 +453,7 @@ func (sf *ServerForm) updateHelp(fieldName string) {
 		}
 		content = fmt.Sprintf("[yellow]%s:[-] %s", help.Field, escapeForTview(help.Description))
 		if example != "" {
-			content += fmt.Sprintf(" [dim](e.g., %s)[-]", escapeForTview(example))
+			content += fmt.Sprintf(" [dim]("+T.ExamplePrefix+"%s)[-]", escapeForTview(example))
 		}
 	} else {
 		// Normal/Full mode: detailed help
@@ -492,13 +492,13 @@ func (sf *ServerForm) formatDetailedHelp(help *FieldHelp) string {
 
 	// Syntax - needs escaping as it often contains brackets like [user@]
 	if help.Syntax != "" {
-		b.WriteString("[cyan]Syntax:[-] ")
+		b.WriteString("[cyan]语法:[-] ")
 		b.WriteString(fmt.Sprintf("%s\n\n", escapeForTview(help.Syntax)))
 	}
 
 	// Examples - needs escaping as they might contain special characters
 	if len(help.Examples) > 0 {
-		b.WriteString("[cyan]Examples:[-]\n")
+		b.WriteString("[cyan]示例:[-]\n")
 		for _, ex := range help.Examples {
 			b.WriteString(fmt.Sprintf("  • %s\n", escapeForTview(ex)))
 		}
@@ -507,12 +507,12 @@ func (sf *ServerForm) formatDetailedHelp(help *FieldHelp) string {
 
 	// Default value - already processed by formatDefaultValue, no additional escaping needed
 	if help.Default != "" {
-		b.WriteString(fmt.Sprintf("[dim]Default: %s[-]\n", help.Default))
+		b.WriteString(fmt.Sprintf("[dim]默认值: %s[-]\n", help.Default))
 	}
 
 	// Version info - unlikely to contain brackets, but escape for safety
 	if help.Since != "" {
-		b.WriteString(fmt.Sprintf("[dim]Available since: %s[-]\n", escapeForTview(help.Since)))
+		b.WriteString(fmt.Sprintf("[dim]%s%s[-]\n", T.AvailableSince, escapeForTview(help.Since)))
 	}
 
 	return b.String()
@@ -916,7 +916,7 @@ func (sf *ServerForm) validateField(fieldName, value string) string {
 
 	// Check required
 	if validator.Required && strings.TrimSpace(value) == "" {
-		err := fmt.Sprintf("%s is required", fieldName)
+		err := fmt.Sprintf("%s%s", fieldName, T.ValidationErrorRequired)
 		sf.validation.SetError(fieldName, err)
 		return err
 	}
@@ -961,7 +961,43 @@ func (sf *ServerForm) addDropDownWithHelp(form *tview.Form, label, fieldName str
 	form.AddFormItem(dropdown)
 }
 
-// addInputFieldWithHelp adds a regular input field with help support
+// addDropDown adds a dropdown without help support
+func (sf *ServerForm) addDropDown(form *tview.Form, label, fieldName string, options []string, initialOption int) {
+	dropdown := tview.NewDropDown().
+		SetLabel(label).
+		SetOptions(options, nil).
+		SetCurrentOption(initialOption)
+
+	// Add focus handler to show help
+	dropdown.SetFocusFunc(func() {
+		sf.updateHelp(fieldName)
+	})
+
+	form.AddFormItem(dropdown)
+}
+
+// addPasswordInputField adds a password input field (masked input)
+func (sf *ServerForm) addPasswordInputField(form *tview.Form, label, fieldName, defaultValue string, width int, placeholder string) *tview.InputField {
+	field := tview.NewInputField().
+		SetLabel(label).
+		SetText(defaultValue).
+		SetFieldWidth(width).
+		SetMaskCharacter('*')
+
+	if placeholder != "" {
+		field.SetPlaceholder(placeholder)
+	}
+
+	// Add focus handler to show help
+	field.SetFocusFunc(func() {
+		sf.updateHelp(fieldName)
+	})
+
+	form.AddFormItem(field)
+	return field
+}
+
+// findFormItemIndex returns the index of a form item in the form, or -1 if not found
 func (sf *ServerForm) addInputFieldWithHelp(form *tview.Form, label, fieldName, defaultValue string, width int, placeholder string) *tview.InputField {
 	field := tview.NewInputField().
 		SetLabel(label).
@@ -1072,6 +1108,8 @@ func (sf *ServerForm) getDefaultValues() ServerFormData {
 			Port:                 fmt.Sprint(sf.original.Port),
 			Key:                  strings.Join(sf.original.IdentityFiles, ", "),
 			Tags:                 strings.Join(sf.original.Tags, ", "),
+			AuthMethod:           sf.original.AuthMethod,
+			Password:             sf.original.Password,
 			ProxyJump:            sf.original.ProxyJump,
 			ProxyCommand:         sf.original.ProxyCommand,
 			RemoteCommand:        sf.original.RemoteCommand,
@@ -1242,27 +1280,125 @@ func (sf *ServerForm) createBasicForm() {
 	defaultValues := sf.getDefaultValues()
 
 	// Add validated input fields
-	sf.addValidatedInputField(form, "Alias:", "Alias", defaultValues.Alias, 20, GetFieldPlaceholder("Alias"))
-	sf.addValidatedInputField(form, "Host/IP:", "Host", defaultValues.Host, 20, GetFieldPlaceholder("Host"))
-	sf.addValidatedInputField(form, "User:", "User", defaultValues.User, 20, GetFieldPlaceholder("User"))
-	sf.addValidatedInputField(form, "Port:", "Port", defaultValues.Port, 20, GetFieldPlaceholder("Port"))
+	sf.addValidatedInputField(form, GetFormLabel("Alias:"), "Alias", defaultValues.Alias, 20, GetFieldPlaceholder("Alias"))
+	sf.addValidatedInputField(form, GetFormLabel("Host/IP:"), "Host", defaultValues.Host, 20, GetFieldPlaceholder("Host"))
+	sf.addValidatedInputField(form, GetFormLabel("User:"), "User", defaultValues.User, 20, GetFieldPlaceholder("User"))
+	sf.addValidatedInputField(form, GetFormLabel("Port:"), "Port", defaultValues.Port, 20, GetFieldPlaceholder("Port"))
 
-	// Keys field with autocomplete
-	keysField := sf.addValidatedInputField(form, "Keys:", "Keys", defaultValues.Key, 40, GetFieldPlaceholder("Keys"))
+	// Auth Method dropdown - right after Port
+	authMethodOptions := []string{T.AuthMethodAuto, T.AuthMethodKey, T.AuthMethodPassword}
+	authMethodIndex := 0 // auto (index 0)
+	if defaultValues.AuthMethod == T.AuthMethodKey {
+		authMethodIndex = 1
+	} else if defaultValues.AuthMethod == T.AuthMethodPassword {
+		authMethodIndex = 2
+	}
+
+	authDropdown := tview.NewDropDown().
+		SetLabel(GetFormLabel("AuthMethod:")).
+		SetOptions(authMethodOptions, nil).
+		SetCurrentOption(authMethodIndex)
+	authDropdown.SetFocusFunc(func() {
+		sf.updateHelp("AuthMethod")
+	})
+	form.AddFormItem(authDropdown) // index 4, right after Port
+
+	// Keys field - after AuthMethod (index 5)
+	keysField := sf.addValidatedInputField(form, GetFormLabel("Keys:"), "Keys", defaultValues.Key, 40, GetFieldPlaceholder("Keys"))
 	keysField.SetAutocompleteFunc(sf.createSSHKeyAutocomplete())
 
-	// Tags field
-	sf.addValidatedInputField(form, "Tags:", "Tags", defaultValues.Tags, 30, GetFieldPlaceholder("Tags"))
+	// Password field - after Keys (index 6)
+	passwordField := sf.addPasswordInputField(form, GetFormLabel("Password:"), "Password", defaultValues.Password, 40, "enter password")
+
+	// Tags field - after Password (index 7)
+	sf.addValidatedInputField(form, GetFormLabel("Tags:"), "Tags", defaultValues.Tags, 30, GetFieldPlaceholder("Tags"))
+
+	// Insert a form item at a specific index
+	insertFormItemAt := func(form *tview.Form, index int, item tview.FormItem) {
+		var saved []tview.FormItem
+		for i := index; i < form.GetFormItemCount(); i++ {
+			saved = append(saved, form.GetFormItem(i))
+		}
+		// Remove from index onwards
+		for i := len(saved) - 1; i >= 0; i-- {
+			form.RemoveFormItem(index)
+		}
+		form.AddFormItem(item)
+		for _, s := range saved {
+			form.AddFormItem(s)
+		}
+	}
+
+	// Form order: [Alias, Host, User, Port, AuthMethod, Keys, Password, Tags]
+	// AuthMethod at index 4, Keys at index 5, Password at index 6, Tags at index 7
+	authDropdown.SetSelectedFunc(func(text string, index int) {
+		authIdx := findFormItemIndex(form, authDropdown)
+		keysIdx := findFormItemIndex(form, keysField)
+		passwordIdx := findFormItemIndex(form, passwordField)
+
+		switch index {
+		case 1: // Key mode - remove Password, keep Keys
+			if passwordIdx >= 0 {
+				form.RemoveFormItem(passwordIdx)
+			}
+		case 2: // Password mode - remove Keys, keep Password
+			if keysIdx >= 0 {
+				form.RemoveFormItem(keysIdx)
+			}
+			// Ensure Password is present (insert right after AuthMethod)
+			if passwordIdx < 0 {
+				insertFormItemAt(form, authIdx+1, passwordField)
+			}
+		default: // Auto mode - restore both
+			// Keys should be right after AuthMethod
+			if keysIdx < 0 {
+				insertFormItemAt(form, authIdx+1, keysField)
+			}
+			// Password should be right after Keys (if Keys exists) or after AuthMethod
+			if findFormItemIndex(form, passwordField) < 0 {
+				keysNow := findFormItemIndex(form, keysField)
+				if keysNow >= 0 {
+					insertFormItemAt(form, keysNow+1, passwordField)
+				} else {
+					insertFormItemAt(form, authIdx+1+1, passwordField)
+				}
+			}
+		}
+	})
+
+	// Initialize visibility based on default auth method
+	if defaultValues.AuthMethod == T.AuthMethodKey {
+		if idx := findFormItemIndex(form, passwordField); idx >= 0 {
+			form.RemoveFormItem(idx)
+		}
+	} else if defaultValues.AuthMethod == T.AuthMethodPassword {
+		if idx := findFormItemIndex(form, keysField); idx >= 0 {
+			form.RemoveFormItem(idx)
+		}
+	}
 
 	// Add save and cancel buttons
-	form.AddButton("Save", sf.handleSaveButton)
-	form.AddButton("Cancel", sf.handleCancel)
+	form.AddButton(T.SaveButton, sf.handleSaveButton)
+	form.AddButton(T.CancelButton, sf.handleCancel)
 
 	// Set up form-level input capture for shortcuts
 	sf.setupFormShortcuts(form)
 
-	sf.forms["Basic"] = form
-	sf.pages.AddPage("Basic", form, true, true)
+	// Use tab name from sf.tabs as page key (i18n-aware)
+	if len(sf.tabs) > 0 {
+		sf.forms[sf.tabs[0]] = form
+		sf.pages.AddPage(sf.tabs[0], form, true, true)
+	}
+}
+
+// findFormItemIndex returns the index of a form item in the form, or -1 if not found
+func findFormItemIndex(form *tview.Form, target tview.FormItem) int {
+	for i := 0; i < form.GetFormItemCount(); i++ {
+		if form.GetFormItem(i) == target {
+			return i
+		}
+	}
+	return -1
 }
 
 // createConnectionForm creates the Connection & Proxy tab
@@ -1270,93 +1406,93 @@ func (sf *ServerForm) createConnectionForm() {
 	form := tview.NewForm()
 	defaultValues := sf.getDefaultValues()
 
-	form.AddTextView("\n[yellow]▶ Proxy & Command[-]", "", 0, 1, true, false)
-	sf.addInputFieldWithHelp(form, "ProxyJump:", "ProxyJump", defaultValues.ProxyJump, 40, GetFieldPlaceholder("ProxyJump"))
-	sf.addInputFieldWithHelp(form, "ProxyCommand:", "ProxyCommand", defaultValues.ProxyCommand, 40, GetFieldPlaceholder("ProxyCommand"))
-	sf.addInputFieldWithHelp(form, "RemoteCommand:", "RemoteCommand", defaultValues.RemoteCommand, 40, GetFieldPlaceholder("RemoteCommand"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Proxy & Command")+"[-]", "", 0, 1, true, false)
+	sf.addInputFieldWithHelp(form, GetFormLabel("ProxyJump:"), "ProxyJump", defaultValues.ProxyJump, 40, GetFieldPlaceholder("ProxyJump"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("ProxyCommand:"), "ProxyCommand", defaultValues.ProxyCommand, 40, GetFieldPlaceholder("ProxyCommand"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("RemoteCommand:"), "RemoteCommand", defaultValues.RemoteCommand, 40, GetFieldPlaceholder("RemoteCommand"))
 
 	// RequestTTY dropdown
-	requestTTYOptions := createOptionsWithDefault("RequestTTY", []string{"", "yes", "no", "force", "auto"})
+	requestTTYOptions := createOptionsWithDefault("RequestTTY", []string{"", T.YesOption, T.NoOption, "force", "auto"})
 	requestTTYIndex := sf.findOptionIndex(requestTTYOptions, defaultValues.RequestTTY)
-	sf.addDropDownWithHelp(form, "RequestTTY:", "RequestTTY", requestTTYOptions, requestTTYIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("RequestTTY:"), "RequestTTY", requestTTYOptions, requestTTYIndex)
 
 	// SessionType dropdown (OpenSSH 8.7+)
-	sessionTypeOptions := createOptionsWithDefault("SessionType", []string{"", "none (-N)", "subsystem (-s)", "default"})
+	sessionTypeOptions := createOptionsWithDefault("SessionType", []string{"", T.NoneSessionType, T.SubsystemSessionType, T.DefaultSessionType})
 	sessionTypeIndex := sf.findOptionIndex(sessionTypeOptions, defaultValues.SessionType)
-	sf.addDropDownWithHelp(form, "SessionType:", "SessionType", sessionTypeOptions, sessionTypeIndex)
+	sf.addDropDownWithHelp(form, T.SessionTypeLabel, "SessionType", sessionTypeOptions, sessionTypeIndex)
 
-	form.AddTextView("\n[yellow]▶ Connection Settings[-]", "", 0, 1, true, false)
-	sf.addValidatedInputField(form, "ConnectTimeout:", "ConnectTimeout", defaultValues.ConnectTimeout, 10, GetFieldPlaceholder("ConnectTimeout"))
-	sf.addValidatedInputField(form, "ConnectionAttempts:", "ConnectionAttempts", defaultValues.ConnectionAttempts, 10, GetFieldPlaceholder("ConnectionAttempts"))
-	sf.addValidatedInputField(form, "IPQoS:", "IPQoS", defaultValues.IPQoS, 20, GetFieldPlaceholder("IPQoS"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Connection Settings")+"[-]", "", 0, 1, true, false)
+	sf.addValidatedInputField(form, GetFormLabel("ConnectTimeout:"), "ConnectTimeout", defaultValues.ConnectTimeout, 10, GetFieldPlaceholder("ConnectTimeout"))
+	sf.addValidatedInputField(form, GetFormLabel("ConnectionAttempts:"), "ConnectionAttempts", defaultValues.ConnectionAttempts, 10, GetFieldPlaceholder("ConnectionAttempts"))
+	sf.addValidatedInputField(form, GetFormLabel("IPQoS:"), "IPQoS", defaultValues.IPQoS, 20, GetFieldPlaceholder("IPQoS"))
 
 	// BatchMode dropdown (moved from Keep-Alive)
-	batchModeOptions := createOptionsWithDefault("BatchMode", []string{"", "yes", "no"})
+	batchModeOptions := createOptionsWithDefault("BatchMode", []string{"", T.YesOption, T.NoOption})
 	batchModeIndex := sf.findOptionIndex(batchModeOptions, defaultValues.BatchMode)
-	sf.addDropDownWithHelp(form, "BatchMode:", "BatchMode", batchModeOptions, batchModeIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("BatchMode:"), "BatchMode", batchModeOptions, batchModeIndex)
 
-	form.AddTextView("\n[yellow]▶ Bind Options[-]", "", 0, 1, true, false)
-	sf.addValidatedInputField(form, "BindAddress:", "BindAddress", defaultValues.BindAddress, 40, GetFieldPlaceholder("BindAddress"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Bind Options")+"[-]", "", 0, 1, true, false)
+	sf.addValidatedInputField(form, GetFormLabel("BindAddress:"), "BindAddress", defaultValues.BindAddress, 40, GetFieldPlaceholder("BindAddress"))
 
 	// BindInterface dropdown with available network interfaces
 	interfaceOptions := append([]string{""}, GetNetworkInterfaces()...)
 	bindInterfaceIndex := sf.findOptionIndex(interfaceOptions, defaultValues.BindInterface)
-	sf.addDropDownWithHelp(form, "BindInterface:", "BindInterface", interfaceOptions, bindInterfaceIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("BindInterface:"), "BindInterface", interfaceOptions, bindInterfaceIndex)
 
 	// AddressFamily dropdown
 	addressFamilyOptions := createOptionsWithDefault("AddressFamily", []string{"", "any", "inet", "inet6"})
 	addressFamilyIndex := sf.findOptionIndex(addressFamilyOptions, defaultValues.AddressFamily)
-	sf.addDropDownWithHelp(form, "AddressFamily:", "AddressFamily", addressFamilyOptions, addressFamilyIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("AddressFamily:"), "AddressFamily", addressFamilyOptions, addressFamilyIndex)
 
-	form.AddTextView("\n[yellow]▶ Hostname Canonicalization[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Hostname Canonicalization")+"[-]", "", 0, 1, true, false)
 
 	// CanonicalizeHostname dropdown
-	canonicalizeOptions := createOptionsWithDefault("CanonicalizeHostname", []string{"", "yes", "no", "always"})
+	canonicalizeOptions := createOptionsWithDefault("CanonicalizeHostname", []string{"", T.YesOption, T.NoOption, "always"})
 	canonicalizeIndex := sf.findOptionIndex(canonicalizeOptions, defaultValues.CanonicalizeHostname)
-	sf.addDropDownWithHelp(form, "CanonicalizeHostname:", "CanonicalizeHostname", canonicalizeOptions, canonicalizeIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("CanonicalizeHostname:"), "CanonicalizeHostname", canonicalizeOptions, canonicalizeIndex)
 
-	sf.addInputFieldWithHelp(form, "CanonicalDomains:", "CanonicalDomains", defaultValues.CanonicalDomains, 40, GetFieldPlaceholder("CanonicalDomains"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("CanonicalDomains:"), "CanonicalDomains", defaultValues.CanonicalDomains, 40, GetFieldPlaceholder("CanonicalDomains"))
 
 	// CanonicalizeFallbackLocal dropdown
-	fallbackOptions := createOptionsWithDefault("CanonicalizeFallbackLocal", []string{"", "yes", "no"})
+	fallbackOptions := createOptionsWithDefault("CanonicalizeFallbackLocal", []string{"", T.YesOption, T.NoOption})
 	fallbackIndex := sf.findOptionIndex(fallbackOptions, defaultValues.CanonicalizeFallbackLocal)
-	sf.addDropDownWithHelp(form, "CanonicalizeFallbackLocal:", "CanonicalizeFallbackLocal", fallbackOptions, fallbackIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("CanonicalizeFallbackLocal:"), "CanonicalizeFallbackLocal", fallbackOptions, fallbackIndex)
 
-	sf.addValidatedInputField(form, "CanonicalizeMaxDots:", "CanonicalizeMaxDots", defaultValues.CanonicalizeMaxDots, 10, GetFieldPlaceholder("CanonicalizeMaxDots"))
+	sf.addValidatedInputField(form, GetFormLabel("CanonicalizeMaxDots:"), "CanonicalizeMaxDots", defaultValues.CanonicalizeMaxDots, 10, GetFieldPlaceholder("CanonicalizeMaxDots"))
 
-	sf.addInputFieldWithHelp(form, "CanonicalizePermittedCNAMEs:", "CanonicalizePermittedCNAMEs", defaultValues.CanonicalizePermittedCNAMEs, 40, GetFieldPlaceholder("CanonicalizePermittedCNAMEs"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("CanonicalizePermittedCNAMEs:"), "CanonicalizePermittedCNAMEs", defaultValues.CanonicalizePermittedCNAMEs, 40, GetFieldPlaceholder("CanonicalizePermittedCNAMEs"))
 
-	form.AddTextView("\n[yellow]▶ Keep-Alive[-]", "", 0, 1, true, false)
-	sf.addValidatedInputField(form, "ServerAliveInterval:", "ServerAliveInterval", defaultValues.ServerAliveInterval, 10, GetFieldPlaceholder("ServerAliveInterval"))
-	sf.addValidatedInputField(form, "ServerAliveCountMax:", "ServerAliveCountMax", defaultValues.ServerAliveCountMax, 10, GetFieldPlaceholder("ServerAliveCountMax"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Keep-Alive")+"[-]", "", 0, 1, true, false)
+	sf.addValidatedInputField(form, GetFormLabel("ServerAliveInterval:"), "ServerAliveInterval", defaultValues.ServerAliveInterval, 10, GetFieldPlaceholder("ServerAliveInterval"))
+	sf.addValidatedInputField(form, GetFormLabel("ServerAliveCountMax:"), "ServerAliveCountMax", defaultValues.ServerAliveCountMax, 10, GetFieldPlaceholder("ServerAliveCountMax"))
 
 	// Compression dropdown
-	compressionOptions := createOptionsWithDefault("Compression", []string{"", "yes", "no"})
+	compressionOptions := createOptionsWithDefault("Compression", []string{"", T.YesOption, T.NoOption})
 	compressionIndex := sf.findOptionIndex(compressionOptions, defaultValues.Compression)
-	sf.addDropDownWithHelp(form, "Compression:", "Compression", compressionOptions, compressionIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("Compression:"), "Compression", compressionOptions, compressionIndex)
 
 	// TCPKeepAlive dropdown
-	tcpKeepAliveOptions := createOptionsWithDefault("TCPKeepAlive", []string{"", "yes", "no"})
+	tcpKeepAliveOptions := createOptionsWithDefault("TCPKeepAlive", []string{"", T.YesOption, T.NoOption})
 	tcpKeepAliveIndex := sf.findOptionIndex(tcpKeepAliveOptions, defaultValues.TCPKeepAlive)
-	sf.addDropDownWithHelp(form, "TCPKeepAlive:", "TCPKeepAlive", tcpKeepAliveOptions, tcpKeepAliveIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("TCPKeepAlive:"), "TCPKeepAlive", tcpKeepAliveOptions, tcpKeepAliveIndex)
 
-	form.AddTextView("\n[yellow]▶ Multiplexing[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Multiplexing")+"[-]", "", 0, 1, true, false)
 	// ControlMaster dropdown
-	controlMasterOptions := createOptionsWithDefault("ControlMaster", []string{"", "yes", "no", "auto", "ask", "autoask"})
+	controlMasterOptions := createOptionsWithDefault("ControlMaster", []string{"", T.YesOption, T.NoOption, "auto", T.AskOption, "autoask"})
 	controlMasterIndex := sf.findOptionIndex(controlMasterOptions, defaultValues.ControlMaster)
 	sf.addDropDownWithHelp(form, "ControlMaster:", "ControlMaster", controlMasterOptions, controlMasterIndex)
 	sf.addInputFieldWithHelp(form, "ControlPath:", "ControlPath", defaultValues.ControlPath, 40, GetFieldPlaceholder("ControlPath"))
 	sf.addInputFieldWithHelp(form, "ControlPersist:", "ControlPersist", defaultValues.ControlPersist, 20, GetFieldPlaceholder("ControlPersist"))
 
 	// Add save and cancel buttons
-	form.AddButton("Save", sf.handleSaveButton)
-	form.AddButton("Cancel", sf.handleCancel)
+	form.AddButton(T.SaveButton, sf.handleSaveButton)
+	form.AddButton(T.CancelButton, sf.handleCancel)
 
 	// Set up form-level input capture for shortcuts
 	sf.setupFormShortcuts(form)
 
-	sf.forms["Connection"] = form
-	sf.pages.AddPage("Connection", form, true, false)
+	sf.forms[sf.tabs[1]] = form
+	sf.pages.AddPage(sf.tabs[1], form, true, false)
 }
 
 // createForwardingForm creates the Port Forwarding tab
@@ -1364,52 +1500,52 @@ func (sf *ServerForm) createForwardingForm() {
 	form := tview.NewForm()
 	defaultValues := sf.getDefaultValues()
 
-	form.AddTextView("\n[yellow]▶ Port Forwarding[-]", "", 0, 1, true, false)
-	sf.addValidatedInputField(form, "LocalForward:", "LocalForward", defaultValues.LocalForward, 40, GetFieldPlaceholder("LocalForward"))
-	sf.addValidatedInputField(form, "RemoteForward:", "RemoteForward", defaultValues.RemoteForward, 40, GetFieldPlaceholder("RemoteForward"))
-	sf.addValidatedInputField(form, "DynamicForward:", "DynamicForward", defaultValues.DynamicForward, 40, GetFieldPlaceholder("DynamicForward"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Port Forwarding")+"[-]", "", 0, 1, true, false)
+	sf.addValidatedInputField(form, GetFormLabel("LocalForward:"), "LocalForward", defaultValues.LocalForward, 40, GetFieldPlaceholder("LocalForward"))
+	sf.addValidatedInputField(form, GetFormLabel("RemoteForward:"), "RemoteForward", defaultValues.RemoteForward, 40, GetFieldPlaceholder("RemoteForward"))
+	sf.addValidatedInputField(form, GetFormLabel("DynamicForward:"), "DynamicForward", defaultValues.DynamicForward, 40, GetFieldPlaceholder("DynamicForward"))
 
 	// ClearAllForwardings dropdown
-	clearAllForwardingsOptions := createOptionsWithDefault("ClearAllForwardings", []string{"", "yes", "no"})
+	clearAllForwardingsOptions := createOptionsWithDefault("ClearAllForwardings", []string{"", T.YesOption, T.NoOption})
 	clearAllForwardingsIndex := sf.findOptionIndex(clearAllForwardingsOptions, defaultValues.ClearAllForwardings)
-	sf.addDropDownWithHelp(form, "ClearAllForwardings:", "ClearAllForwardings", clearAllForwardingsOptions, clearAllForwardingsIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("ClearAllForwardings:"), "ClearAllForwardings", clearAllForwardingsOptions, clearAllForwardingsIndex)
 
 	// ExitOnForwardFailure dropdown
-	exitOnForwardFailureOptions := createOptionsWithDefault("ExitOnForwardFailure", []string{"", "yes", "no"})
+	exitOnForwardFailureOptions := createOptionsWithDefault("ExitOnForwardFailure", []string{"", T.YesOption, T.NoOption})
 	exitOnForwardFailureIndex := sf.findOptionIndex(exitOnForwardFailureOptions, defaultValues.ExitOnForwardFailure)
-	sf.addDropDownWithHelp(form, "ExitOnForwardFailure:", "ExitOnForwardFailure", exitOnForwardFailureOptions, exitOnForwardFailureIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("ExitOnForwardFailure:"), "ExitOnForwardFailure", exitOnForwardFailureOptions, exitOnForwardFailureIndex)
 
 	// GatewayPorts dropdown
-	gatewayPortsOptions := createOptionsWithDefault("GatewayPorts", []string{"", "yes", "no", "clientspecified"})
+	gatewayPortsOptions := createOptionsWithDefault("GatewayPorts", []string{"", T.YesOption, T.NoOption, "clientspecified"})
 	gatewayPortsIndex := sf.findOptionIndex(gatewayPortsOptions, defaultValues.GatewayPorts)
-	sf.addDropDownWithHelp(form, "GatewayPorts:", "GatewayPorts", gatewayPortsOptions, gatewayPortsIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("GatewayPorts:"), "GatewayPorts", gatewayPortsOptions, gatewayPortsIndex)
 
-	form.AddTextView("\n[yellow]▶ Agent & X11 Forwarding[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Agent & X11 Forwarding")+"[-]", "", 0, 1, true, false)
 
 	// ForwardAgent dropdown
-	forwardAgentOptions := createOptionsWithDefault("ForwardAgent", []string{"", "yes", "no"})
+	forwardAgentOptions := createOptionsWithDefault("ForwardAgent", []string{"", T.YesOption, T.NoOption})
 	forwardAgentIndex := sf.findOptionIndex(forwardAgentOptions, defaultValues.ForwardAgent)
 	sf.addDropDownWithHelp(form, "ForwardAgent:", "ForwardAgent", forwardAgentOptions, forwardAgentIndex)
 
 	// ForwardX11 dropdown
-	forwardX11Options := createOptionsWithDefault("ForwardX11", []string{"", "yes", "no"})
+	forwardX11Options := createOptionsWithDefault("ForwardX11", []string{"", T.YesOption, T.NoOption})
 	forwardX11Index := sf.findOptionIndex(forwardX11Options, defaultValues.ForwardX11)
 	sf.addDropDownWithHelp(form, "ForwardX11:", "ForwardX11", forwardX11Options, forwardX11Index)
 
 	// ForwardX11Trusted dropdown
-	forwardX11TrustedOptions := createOptionsWithDefault("ForwardX11Trusted", []string{"", "yes", "no"})
+	forwardX11TrustedOptions := createOptionsWithDefault("ForwardX11Trusted", []string{"", T.YesOption, T.NoOption})
 	forwardX11TrustedIndex := sf.findOptionIndex(forwardX11TrustedOptions, defaultValues.ForwardX11Trusted)
 	sf.addDropDownWithHelp(form, "ForwardX11Trusted:", "ForwardX11Trusted", forwardX11TrustedOptions, forwardX11TrustedIndex)
 
 	// Add save and cancel buttons
-	form.AddButton("Save", sf.handleSaveButton)
-	form.AddButton("Cancel", sf.handleCancel)
+	form.AddButton(T.SaveButton, sf.handleSaveButton)
+	form.AddButton(T.CancelButton, sf.handleCancel)
 
 	// Set up form-level input capture for shortcuts
 	sf.setupFormShortcuts(form)
 
-	sf.forms["Forwarding"] = form
-	sf.pages.AddPage("Forwarding", form, true, false)
+	sf.forms[sf.tabs[2]] = form
+	sf.pages.AddPage(sf.tabs[2], form, true, false)
 }
 
 // Algorithm suggestions for autocomplete
@@ -1479,66 +1615,66 @@ func (sf *ServerForm) createAuthenticationForm() {
 	defaultValues := sf.getDefaultValues()
 
 	// Most common: Public key authentication
-	form.AddTextView("\n[yellow]▶ Public Key Authentication[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Public Key Authentication")+"[-]", "", 0, 1, true, false)
 
 	// PubkeyAuthentication dropdown
-	pubkeyOptions := createOptionsWithDefault("PubkeyAuthentication", []string{"", "yes", "no"})
+	pubkeyOptions := createOptionsWithDefault("PubkeyAuthentication", []string{"", T.YesOption, T.NoOption})
 	pubkeyIndex := sf.findOptionIndex(pubkeyOptions, defaultValues.PubkeyAuthentication)
-	sf.addDropDownWithHelp(form, "PubkeyAuthentication:", "PubkeyAuthentication", pubkeyOptions, pubkeyIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("PubkeyAuthentication:"), "PubkeyAuthentication", pubkeyOptions, pubkeyIndex)
 
-	// IdentitiesOnly dropdown - controls whether to use only specified identity files
-	identitiesOnlyOptions := createOptionsWithDefault("IdentitiesOnly", []string{"", "yes", "no"})
+	// IdentitiesOnly dropdown
+	identitiesOnlyOptions := createOptionsWithDefault("IdentitiesOnly", []string{"", T.YesOption, T.NoOption})
 	identitiesOnlyIndex := sf.findOptionIndex(identitiesOnlyOptions, defaultValues.IdentitiesOnly)
-	sf.addDropDownWithHelp(form, "IdentitiesOnly:", "IdentitiesOnly", identitiesOnlyOptions, identitiesOnlyIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("IdentitiesOnly:"), "IdentitiesOnly", identitiesOnlyOptions, identitiesOnlyIndex)
 
 	// SSH Agent settings
-	form.AddTextView("\n[yellow]▶ SSH Agent[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("SSH Agent")+"[-]", "", 0, 1, true, false)
 
 	// AddKeysToAgent dropdown
-	addKeysOptions := createOptionsWithDefault("AddKeysToAgent", []string{"", "yes", "no", "ask", "confirm"})
+	addKeysOptions := createOptionsWithDefault("AddKeysToAgent", []string{"", T.YesOption, T.NoOption, T.AskOption, "confirm"})
 	addKeysIndex := sf.findOptionIndex(addKeysOptions, defaultValues.AddKeysToAgent)
-	sf.addDropDownWithHelp(form, "AddKeysToAgent:", "AddKeysToAgent", addKeysOptions, addKeysIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("AddKeysToAgent:"), "AddKeysToAgent", addKeysOptions, addKeysIndex)
 
-	sf.addInputFieldWithHelp(form, "IdentityAgent:", "IdentityAgent", defaultValues.IdentityAgent, 40, GetFieldPlaceholder("IdentityAgent"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("IdentityAgent:"), "IdentityAgent", defaultValues.IdentityAgent, 40, GetFieldPlaceholder("IdentityAgent"))
 
 	// Password/Interactive authentication
-	form.AddTextView("\n[yellow]▶ Password & Interactive[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Password & Interactive")+"[-]", "", 0, 1, true, false)
 
 	// PasswordAuthentication dropdown
-	passwordOptions := createOptionsWithDefault("PasswordAuthentication", []string{"", "yes", "no"})
+	passwordOptions := createOptionsWithDefault("PasswordAuthentication", []string{"", T.YesOption, T.NoOption})
 	passwordIndex := sf.findOptionIndex(passwordOptions, defaultValues.PasswordAuthentication)
-	sf.addDropDownWithHelp(form, "PasswordAuthentication:", "PasswordAuthentication", passwordOptions, passwordIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("PasswordAuthentication:"), "PasswordAuthentication", passwordOptions, passwordIndex)
 
 	// KbdInteractiveAuthentication dropdown
-	kbdInteractiveOptions := createOptionsWithDefault("KbdInteractiveAuthentication", []string{"", "yes", "no"})
+	kbdInteractiveOptions := createOptionsWithDefault("KbdInteractiveAuthentication", []string{"", T.YesOption, T.NoOption})
 	kbdInteractiveIndex := sf.findOptionIndex(kbdInteractiveOptions, defaultValues.KbdInteractiveAuthentication)
-	sf.addDropDownWithHelp(form, "KbdInteractiveAuthentication:", "KbdInteractiveAuthentication", kbdInteractiveOptions, kbdInteractiveIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("KbdInteractiveAuthentication:"), "KbdInteractiveAuthentication", kbdInteractiveOptions, kbdInteractiveIndex)
 
 	// NumberOfPasswordPrompts field
-	sf.addValidatedInputField(form, "NumberOfPasswordPrompts:", "NumberOfPasswordPrompts", defaultValues.NumberOfPasswordPrompts, 10, GetFieldPlaceholder("NumberOfPasswordPrompts"))
+	sf.addValidatedInputField(form, GetFormLabel("NumberOfPasswordPrompts:"), "NumberOfPasswordPrompts", defaultValues.NumberOfPasswordPrompts, 10, GetFieldPlaceholder("NumberOfPasswordPrompts"))
 
 	// Advanced: Authentication order preference
-	form.AddTextView("\n[yellow]▶ Advanced[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Advanced")+"[-]", "", 0, 1, true, false)
 
-	sf.addInputFieldWithHelp(form, "PreferredAuthentications:", "PreferredAuthentications", defaultValues.PreferredAuthentications, 40, GetFieldPlaceholder("PreferredAuthentications"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("PreferredAuthentications:"), "PreferredAuthentications", defaultValues.PreferredAuthentications, 40, GetFieldPlaceholder("PreferredAuthentications"))
 
 	// PubkeyAcceptedAlgorithms with autocomplete support (moved from Advanced/Cryptography)
-	pubkeyAlgField := sf.addInputFieldWithHelp(form, "PubkeyAcceptedAlgorithms:", "PubkeyAcceptedAlgorithms", defaultValues.PubkeyAcceptedAlgorithms, 40, GetFieldPlaceholder("PubkeyAcceptedAlgorithms"))
+	pubkeyAlgField := sf.addInputFieldWithHelp(form, GetFormLabel("PubkeyAcceptedAlgorithms:"), "PubkeyAcceptedAlgorithms", defaultValues.PubkeyAcceptedAlgorithms, 40, GetFieldPlaceholder("PubkeyAcceptedAlgorithms"))
 	pubkeyAlgField.SetAutocompleteFunc(sf.createAlgorithmAutocomplete(pubkeyAlgorithms))
 
 	// HostbasedAcceptedAlgorithms with autocomplete support (moved from Advanced/Cryptography)
-	hostbasedAlgField := sf.addInputFieldWithHelp(form, "HostbasedAcceptedAlgorithms:", "HostbasedAcceptedAlgorithms", defaultValues.HostbasedAcceptedAlgorithms, 40, GetFieldPlaceholder("HostbasedAcceptedAlgorithms"))
+	hostbasedAlgField := sf.addInputFieldWithHelp(form, GetFormLabel("HostbasedAcceptedAlgorithms:"), "HostbasedAcceptedAlgorithms", defaultValues.HostbasedAcceptedAlgorithms, 40, GetFieldPlaceholder("HostbasedAcceptedAlgorithms"))
 	hostbasedAlgField.SetAutocompleteFunc(sf.createAlgorithmAutocomplete(pubkeyAlgorithms))
 
 	// Add save and cancel buttons
-	form.AddButton("Save", sf.handleSaveButton)
-	form.AddButton("Cancel", sf.handleCancel)
+	form.AddButton(T.SaveButton, sf.handleSaveButton)
+	form.AddButton(T.CancelButton, sf.handleCancel)
 
 	// Set up form-level input capture for shortcuts
 	sf.setupFormShortcuts(form)
 
-	sf.forms["Authentication"] = form
-	sf.pages.AddPage("Authentication", form, true, false)
+	sf.forms[sf.tabs[3]] = form
+	sf.pages.AddPage(sf.tabs[3], form, true, false)
 }
 
 // createAdvancedForm creates the Advanced settings tab
@@ -1546,96 +1682,96 @@ func (sf *ServerForm) createAdvancedForm() {
 	form := tview.NewForm()
 	defaultValues := sf.getDefaultValues()
 
-	form.AddTextView("\n[yellow]▶ Security[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Security")+"[-]", "", 0, 1, true, false)
 
 	// StrictHostKeyChecking dropdown
-	strictHostKeyOptions := createOptionsWithDefault("StrictHostKeyChecking", []string{"", "yes", "no", "ask", "accept-new"})
+	strictHostKeyOptions := createOptionsWithDefault("StrictHostKeyChecking", []string{"", T.YesOption, T.NoOption, T.AskOption, "accept-new"})
 	strictHostKeyIndex := sf.findOptionIndex(strictHostKeyOptions, defaultValues.StrictHostKeyChecking)
-	sf.addDropDownWithHelp(form, "StrictHostKeyChecking:", "StrictHostKeyChecking", strictHostKeyOptions, strictHostKeyIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("StrictHostKeyChecking:"), "StrictHostKeyChecking", strictHostKeyOptions, strictHostKeyIndex)
 
 	// CheckHostIP dropdown
-	checkHostIPOptions := createOptionsWithDefault("CheckHostIP", []string{"", "yes", "no"})
+	checkHostIPOptions := createOptionsWithDefault("CheckHostIP", []string{"", T.YesOption, T.NoOption})
 	checkHostIPIndex := sf.findOptionIndex(checkHostIPOptions, defaultValues.CheckHostIP)
-	sf.addDropDownWithHelp(form, "CheckHostIP:", "CheckHostIP", checkHostIPOptions, checkHostIPIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("CheckHostIP:"), "CheckHostIP", checkHostIPOptions, checkHostIPIndex)
 
 	// FingerprintHash dropdown
 	fingerprintHashOptions := createOptionsWithDefault("FingerprintHash", []string{"", "md5", "sha256"})
 	fingerprintHashIndex := sf.findOptionIndex(fingerprintHashOptions, defaultValues.FingerprintHash)
-	sf.addDropDownWithHelp(form, "FingerprintHash:", "FingerprintHash", fingerprintHashOptions, fingerprintHashIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("FingerprintHash:"), "FingerprintHash", fingerprintHashOptions, fingerprintHashIndex)
 
 	// VerifyHostKeyDNS dropdown
-	verifyHostKeyDNSOptions := createOptionsWithDefault("VerifyHostKeyDNS", []string{"", "yes", "no", "ask"})
+	verifyHostKeyDNSOptions := createOptionsWithDefault("VerifyHostKeyDNS", []string{"", T.YesOption, T.NoOption, T.AskOption})
 	verifyHostKeyDNSIndex := sf.findOptionIndex(verifyHostKeyDNSOptions, defaultValues.VerifyHostKeyDNS)
-	sf.addDropDownWithHelp(form, "VerifyHostKeyDNS:", "VerifyHostKeyDNS", verifyHostKeyDNSOptions, verifyHostKeyDNSIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("VerifyHostKeyDNS:"), "VerifyHostKeyDNS", verifyHostKeyDNSOptions, verifyHostKeyDNSIndex)
 
 	// UpdateHostKeys dropdown
-	updateHostKeysOptions := createOptionsWithDefault("UpdateHostKeys", []string{"", "yes", "no", "ask"})
+	updateHostKeysOptions := createOptionsWithDefault("UpdateHostKeys", []string{"", T.YesOption, T.NoOption, T.AskOption})
 	updateHostKeysIndex := sf.findOptionIndex(updateHostKeysOptions, defaultValues.UpdateHostKeys)
-	sf.addDropDownWithHelp(form, "UpdateHostKeys:", "UpdateHostKeys", updateHostKeysOptions, updateHostKeysIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("UpdateHostKeys:"), "UpdateHostKeys", updateHostKeysOptions, updateHostKeysIndex)
 
 	// HashKnownHosts dropdown
-	hashKnownHostsOptions := createOptionsWithDefault("HashKnownHosts", []string{"", "yes", "no"})
+	hashKnownHostsOptions := createOptionsWithDefault("HashKnownHosts", []string{"", T.YesOption, T.NoOption})
 	hashKnownHostsIndex := sf.findOptionIndex(hashKnownHostsOptions, defaultValues.HashKnownHosts)
-	sf.addDropDownWithHelp(form, "HashKnownHosts:", "HashKnownHosts", hashKnownHostsOptions, hashKnownHostsIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("HashKnownHosts:"), "HashKnownHosts", hashKnownHostsOptions, hashKnownHostsIndex)
 
 	// VisualHostKey dropdown
-	visualHostKeyOptions := createOptionsWithDefault("VisualHostKey", []string{"", "yes", "no"})
+	visualHostKeyOptions := createOptionsWithDefault("VisualHostKey", []string{"", T.YesOption, T.NoOption})
 	visualHostKeyIndex := sf.findOptionIndex(visualHostKeyOptions, defaultValues.VisualHostKey)
-	sf.addDropDownWithHelp(form, "VisualHostKey:", "VisualHostKey", visualHostKeyOptions, visualHostKeyIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("VisualHostKey:"), "VisualHostKey", visualHostKeyOptions, visualHostKeyIndex)
 
 	// UserKnownHostsFile field with autocomplete and validation
-	knownHostsField := sf.addValidatedInputField(form, "UserKnownHostsFile:", "UserKnownHostsFile", defaultValues.UserKnownHostsFile, 40, GetFieldPlaceholder("UserKnownHostsFile"))
+	knownHostsField := sf.addValidatedInputField(form, GetFormLabel("UserKnownHostsFile:"), "UserKnownHostsFile", defaultValues.UserKnownHostsFile, 40, GetFieldPlaceholder("UserKnownHostsFile"))
 	knownHostsField.SetAutocompleteFunc(sf.createKnownHostsAutocomplete())
 
-	form.AddTextView("\n[yellow]▶ Cryptography[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Cryptography")+"[-]", "", 0, 1, true, false)
 
 	// Ciphers with autocomplete support
 	ciphersField := sf.addInputFieldWithHelp(form, "Ciphers:", "Ciphers", defaultValues.Ciphers, 40, GetFieldPlaceholder("Ciphers"))
 	ciphersField.SetAutocompleteFunc(sf.createAlgorithmAutocomplete(cipherAlgorithms))
 
 	// MACs with autocomplete support
-	macsField := sf.addInputFieldWithHelp(form, "MACs:", "MACs", defaultValues.MACs, 40, GetFieldPlaceholder("MACs"))
+	macsField := sf.addInputFieldWithHelp(form, GetFormLabel("MACs:"), "MACs", defaultValues.MACs, 40, GetFieldPlaceholder("MACs"))
 	macsField.SetAutocompleteFunc(sf.createAlgorithmAutocomplete(macAlgorithms))
 
 	// KexAlgorithms with autocomplete support
-	kexField := sf.addInputFieldWithHelp(form, "KexAlgorithms:", "KexAlgorithms", defaultValues.KexAlgorithms, 40, GetFieldPlaceholder("KexAlgorithms"))
+	kexField := sf.addInputFieldWithHelp(form, GetFormLabel("KexAlgorithms:"), "KexAlgorithms", defaultValues.KexAlgorithms, 40, GetFieldPlaceholder("KexAlgorithms"))
 	kexField.SetAutocompleteFunc(sf.createAlgorithmAutocomplete(kexAlgorithms))
 
 	// HostKeyAlgorithms with autocomplete support
-	hostKeyField := sf.addInputFieldWithHelp(form, "HostKeyAlgorithms:", "HostKeyAlgorithms", defaultValues.HostKeyAlgorithms, 40, GetFieldPlaceholder("HostKeyAlgorithms"))
+	hostKeyField := sf.addInputFieldWithHelp(form, GetFormLabel("HostKeyAlgorithms:"), "HostKeyAlgorithms", defaultValues.HostKeyAlgorithms, 40, GetFieldPlaceholder("HostKeyAlgorithms"))
 	hostKeyField.SetAutocompleteFunc(sf.createAlgorithmAutocomplete(hostKeyAlgorithms))
 
-	form.AddTextView("\n[yellow]▶ Command Execution[-]", "", 0, 1, true, false)
-	sf.addInputFieldWithHelp(form, "LocalCommand:", "LocalCommand", defaultValues.LocalCommand, 40, GetFieldPlaceholder("LocalCommand"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Command Execution")+"[-]", "", 0, 1, true, false)
+	sf.addInputFieldWithHelp(form, GetFormLabel("LocalCommand:"), "LocalCommand", defaultValues.LocalCommand, 40, GetFieldPlaceholder("LocalCommand"))
 
 	// PermitLocalCommand dropdown
-	permitLocalCommandOptions := createOptionsWithDefault("PermitLocalCommand", []string{"", "yes", "no"})
+	permitLocalCommandOptions := createOptionsWithDefault("PermitLocalCommand", []string{"", T.YesOption, T.NoOption})
 	permitLocalCommandIndex := sf.findOptionIndex(permitLocalCommandOptions, defaultValues.PermitLocalCommand)
-	sf.addDropDownWithHelp(form, "PermitLocalCommand:", "PermitLocalCommand", permitLocalCommandOptions, permitLocalCommandIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("PermitLocalCommand:"), "PermitLocalCommand", permitLocalCommandOptions, permitLocalCommandIndex)
 
 	// EscapeChar input field
-	sf.addValidatedInputField(form, "EscapeChar:", "EscapeChar", defaultValues.EscapeChar, 10, GetFieldPlaceholder("EscapeChar"))
+	sf.addValidatedInputField(form, GetFormLabel("EscapeChar:"), "EscapeChar", defaultValues.EscapeChar, 10, GetFieldPlaceholder("EscapeChar"))
 
-	form.AddTextView("\n[yellow]▶ Environment[-]", "", 0, 1, true, false)
-	sf.addInputFieldWithHelp(form, "SendEnv:", "SendEnv", defaultValues.SendEnv, 40, GetFieldPlaceholder("SendEnv"))
-	sf.addInputFieldWithHelp(form, "SetEnv:", "SetEnv", defaultValues.SetEnv, 40, GetFieldPlaceholder("SetEnv"))
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Environment")+"[-]", "", 0, 1, true, false)
+	sf.addInputFieldWithHelp(form, GetFormLabel("SendEnv:"), "SendEnv", defaultValues.SendEnv, 40, GetFieldPlaceholder("SendEnv"))
+	sf.addInputFieldWithHelp(form, GetFormLabel("SetEnv:"), "SetEnv", defaultValues.SetEnv, 40, GetFieldPlaceholder("SetEnv"))
 
-	form.AddTextView("\n[yellow]▶ Debugging[-]", "", 0, 1, true, false)
+	form.AddTextView("\n[yellow]"+GetFormSectionHeader("Debugging")+"[-]", "", 0, 1, true, false)
 
 	// LogLevel dropdown
 	logLevelOptions := createOptionsWithDefault("LogLevel", []string{"", "QUIET", "FATAL", "ERROR", "INFO", "VERBOSE", "DEBUG", "DEBUG1", "DEBUG2", "DEBUG3"})
 	logLevelIndex := sf.findOptionIndex(logLevelOptions, defaultValues.LogLevel)
-	sf.addDropDownWithHelp(form, "LogLevel:", "LogLevel", logLevelOptions, logLevelIndex)
+	sf.addDropDownWithHelp(form, GetFormLabel("LogLevel:"), "LogLevel", logLevelOptions, logLevelIndex)
 
 	// Add save and cancel buttons
-	form.AddButton("Save", sf.handleSaveButton)
-	form.AddButton("Cancel", sf.handleCancel)
+	form.AddButton(T.SaveButton, sf.handleSaveButton)
+	form.AddButton(T.CancelButton, sf.handleCancel)
 
 	// Set up form-level input capture for shortcuts
 	sf.setupFormShortcuts(form)
 
-	sf.forms["Advanced"] = form
-	sf.pages.AddPage("Advanced", form, true, false)
+	sf.forms[sf.tabs[4]] = form
+	sf.pages.AddPage(sf.tabs[4], form, true, false)
 }
 
 type ServerFormData struct {
@@ -1645,6 +1781,10 @@ type ServerFormData struct {
 	Port  string
 	Key   string
 	Tags  string
+
+	// Authentication
+	AuthMethod string
+	Password   string
 
 	// Connection and proxy settings
 	ProxyJump            string
@@ -1774,77 +1914,80 @@ func (sf *ServerForm) getFormData() ServerFormData {
 	}
 
 	return ServerFormData{
-		Alias: getFieldText("Alias:"),
-		Host:  getFieldText("Host/IP:"),
-		User:  getFieldText("User:"),
-		Port:  getFieldText("Port:"),
-		Key:   getFieldText("Keys:"),
-		Tags:  getFieldText("Tags:"),
+		Alias: getFieldText(GetFormLabel("Alias:")),
+		Host:  getFieldText(GetFormLabel("Host/IP:")),
+		User:  getFieldText(GetFormLabel("User:")),
+		Port:  getFieldText(GetFormLabel("Port:")),
+		Key:   getFieldText(GetFormLabel("Keys:")),
+		Tags:  getFieldText(GetFormLabel("Tags:")),
+		// Authentication
+		AuthMethod: getDropdownValue(GetFormLabel("AuthMethod:")),
+		Password:   getFieldText(GetFormLabel("Password:")),
 		// Connection and proxy settings
-		ProxyJump:            getFieldText("ProxyJump:"),
-		ProxyCommand:         getFieldText("ProxyCommand:"),
-		RemoteCommand:        getFieldText("RemoteCommand:"),
-		RequestTTY:           getDropdownValue("RequestTTY:"),
-		SessionType:          sf.parseSessionType(getDropdownValue("SessionType:")),
-		ConnectTimeout:       getFieldText("ConnectTimeout:"),
-		ConnectionAttempts:   getFieldText("ConnectionAttempts:"),
-		BindAddress:          getFieldText("BindAddress:"),
-		BindInterface:        getDropdownValue("BindInterface:"),
-		AddressFamily:        getDropdownValue("AddressFamily:"),
-		ExitOnForwardFailure: getDropdownValue("ExitOnForwardFailure:"),
+		ProxyJump:            getFieldText(GetFormLabel("ProxyJump:")),
+		ProxyCommand:         getFieldText(GetFormLabel("ProxyCommand:")),
+		RemoteCommand:        getFieldText(GetFormLabel("RemoteCommand:")),
+		RequestTTY:           getDropdownValue(GetFormLabel("RequestTTY:")),
+		SessionType:          sf.parseSessionType(getDropdownValue(GetFormLabel("SessionType:"))),
+		ConnectTimeout:       getFieldText(GetFormLabel("ConnectTimeout:")),
+		ConnectionAttempts:   getFieldText(GetFormLabel("ConnectionAttempts:")),
+		BindAddress:          getFieldText(GetFormLabel("BindAddress:")),
+		BindInterface:        getDropdownValue(GetFormLabel("BindInterface:")),
+		AddressFamily:        getDropdownValue(GetFormLabel("AddressFamily:")),
+		ExitOnForwardFailure: getDropdownValue(GetFormLabel("ExitOnForwardFailure:")),
 		// Port forwarding
-		LocalForward:        getFieldText("LocalForward:"),
-		RemoteForward:       getFieldText("RemoteForward:"),
-		DynamicForward:      getFieldText("DynamicForward:"),
-		ClearAllForwardings: getDropdownValue("ClearAllForwardings:"),
+		LocalForward:        getFieldText(GetFormLabel("LocalForward:")),
+		RemoteForward:       getFieldText(GetFormLabel("RemoteForward:")),
+		DynamicForward:      getFieldText(GetFormLabel("DynamicForward:")),
+		ClearAllForwardings: getDropdownValue(GetFormLabel("ClearAllForwardings:")),
 		// Authentication and key management
 		// Public key
-		PubkeyAuthentication: getDropdownValue("PubkeyAuthentication:"),
-		IdentitiesOnly:       getDropdownValue("IdentitiesOnly:"),
+		PubkeyAuthentication: getDropdownValue(GetFormLabel("PubkeyAuthentication:")),
+		IdentitiesOnly:       getDropdownValue(GetFormLabel("IdentitiesOnly:")),
 		// SSH Agent
-		AddKeysToAgent: getDropdownValue("AddKeysToAgent:"),
-		IdentityAgent:  getFieldText("IdentityAgent:"),
+		AddKeysToAgent: getDropdownValue(GetFormLabel("AddKeysToAgent:")),
+		IdentityAgent:  getFieldText(GetFormLabel("IdentityAgent:")),
 		// Password & Interactive
-		PasswordAuthentication:       getDropdownValue("PasswordAuthentication:"),
-		KbdInteractiveAuthentication: getDropdownValue("KbdInteractiveAuthentication:"),
-		NumberOfPasswordPrompts:      getFieldText("NumberOfPasswordPrompts:"),
+		PasswordAuthentication:       getDropdownValue(GetFormLabel("PasswordAuthentication:")),
+		KbdInteractiveAuthentication: getDropdownValue(GetFormLabel("KbdInteractiveAuthentication:")),
+		NumberOfPasswordPrompts:      getFieldText(GetFormLabel("NumberOfPasswordPrompts:")),
 		// Advanced
-		PreferredAuthentications: getFieldText("PreferredAuthentications:"),
+		PreferredAuthentications: getFieldText(GetFormLabel("PreferredAuthentications:")),
 		// Agent and X11 forwarding
-		ForwardAgent:      getDropdownValue("ForwardAgent:"),
-		ForwardX11:        getDropdownValue("ForwardX11:"),
-		ForwardX11Trusted: getDropdownValue("ForwardX11Trusted:"),
+		ForwardAgent:      getDropdownValue(GetFormLabel("ForwardAgent:")),
+		ForwardX11:        getDropdownValue(GetFormLabel("ForwardX11:")),
+		ForwardX11Trusted: getDropdownValue(GetFormLabel("ForwardX11Trusted:")),
 		// Connection multiplexing
-		ControlMaster:  getDropdownValue("ControlMaster:"),
-		ControlPath:    getFieldText("ControlPath:"),
-		ControlPersist: getFieldText("ControlPersist:"),
+		ControlMaster:  getDropdownValue(GetFormLabel("ControlMaster:")),
+		ControlPath:    getFieldText(GetFormLabel("ControlPath:")),
+		ControlPersist: getFieldText(GetFormLabel("ControlPersist:")),
 		// Connection reliability settings
-		ServerAliveInterval: getFieldText("ServerAliveInterval:"),
-		ServerAliveCountMax: getFieldText("ServerAliveCountMax:"),
-		Compression:         getDropdownValue("Compression:"),
-		TCPKeepAlive:        getDropdownValue("TCPKeepAlive:"),
-		BatchMode:           getDropdownValue("BatchMode:"),
+		ServerAliveInterval: getFieldText(GetFormLabel("ServerAliveInterval:")),
+		ServerAliveCountMax: getFieldText(GetFormLabel("ServerAliveCountMax:")),
+		Compression:         getDropdownValue(GetFormLabel("Compression:")),
+		TCPKeepAlive:        getDropdownValue(GetFormLabel("TCPKeepAlive:")),
+		BatchMode:           getDropdownValue(GetFormLabel("BatchMode:")),
 		// Security settings
-		StrictHostKeyChecking:    getDropdownValue("StrictHostKeyChecking:"),
-		UserKnownHostsFile:       getFieldText("UserKnownHostsFile:"),
-		HostKeyAlgorithms:        getFieldText("HostKeyAlgorithms:"),
-		PubkeyAcceptedAlgorithms: getFieldText("PubkeyAcceptedAlgorithms:"),
-		MACs:                     getFieldText("MACs:"),
-		Ciphers:                  getFieldText("Ciphers:"),
-		KexAlgorithms:            getFieldText("KexAlgorithms:"),
-		VerifyHostKeyDNS:         getDropdownValue("VerifyHostKeyDNS:"),
-		UpdateHostKeys:           getDropdownValue("UpdateHostKeys:"),
-		HashKnownHosts:           getDropdownValue("HashKnownHosts:"),
-		VisualHostKey:            getDropdownValue("VisualHostKey:"),
+		StrictHostKeyChecking:    getDropdownValue(GetFormLabel("StrictHostKeyChecking:")),
+		UserKnownHostsFile:       getFieldText(GetFormLabel("UserKnownHostsFile:")),
+		HostKeyAlgorithms:        getFieldText(GetFormLabel("HostKeyAlgorithms:")),
+		PubkeyAcceptedAlgorithms: getFieldText(GetFormLabel("PubkeyAcceptedAlgorithms:")),
+		MACs:                     getFieldText(GetFormLabel("MACs:")),
+		Ciphers:                  getFieldText(GetFormLabel("Ciphers:")),
+		KexAlgorithms:            getFieldText(GetFormLabel("KexAlgorithms:")),
+		VerifyHostKeyDNS:         getDropdownValue(GetFormLabel("VerifyHostKeyDNS:")),
+		UpdateHostKeys:           getDropdownValue(GetFormLabel("UpdateHostKeys:")),
+		HashKnownHosts:           getDropdownValue(GetFormLabel("HashKnownHosts:")),
+		VisualHostKey:            getDropdownValue(GetFormLabel("VisualHostKey:")),
 		// Command execution
-		LocalCommand:       getFieldText("LocalCommand:"),
-		PermitLocalCommand: getDropdownValue("PermitLocalCommand:"),
-		EscapeChar:         getFieldText("EscapeChar:"),
+		LocalCommand:       getFieldText(GetFormLabel("LocalCommand:")),
+		PermitLocalCommand: getDropdownValue(GetFormLabel("PermitLocalCommand:")),
+		EscapeChar:         getFieldText(GetFormLabel("EscapeChar:")),
 		// Environment settings
-		SendEnv: getFieldText("SendEnv:"),
-		SetEnv:  getFieldText("SetEnv:"),
+		SendEnv: getFieldText(GetFormLabel("SendEnv:")),
+		SetEnv:  getFieldText(GetFormLabel("SetEnv:")),
 		// Debugging settings
-		LogLevel: getDropdownValue("LogLevel:"),
+		LogLevel: getDropdownValue(GetFormLabel("LogLevel:")),
 	}
 }
 

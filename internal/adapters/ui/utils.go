@@ -17,6 +17,7 @@ package ui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -644,4 +645,29 @@ func GetAvailableKnownHostsFiles() []string {
 	}
 
 	return files
+}
+
+// BuildSSHPassCommand builds an SSH command using sshpass for password-based authentication.
+// Returns the command string and true if sshpass is available, or empty string and false if not.
+func BuildSSHPassCommand(s domain.Server) (string, bool) {
+	// Check if sshpass is available
+	if _, err := exec.LookPath("sshpass"); err != nil {
+		return "", false
+	}
+
+	if s.Password == "" {
+		return "", false
+	}
+
+	// Build the base SSH command (reuse BuildSSHCommand logic)
+	sshCmd := BuildSSHCommand(s)
+	return fmt.Sprintf("sshpass -p %s %s", quotePassword(s.Password), sshCmd), true
+}
+
+// quotePassword returns the password quoted for shell safety.
+func quotePassword(pwd string) string {
+	if strings.ContainsAny(pwd, " \t\n\"'\\") {
+		return fmt.Sprintf("'%s'", strings.ReplaceAll(pwd, "'", "'\\''"))
+	}
+	return pwd
 }
