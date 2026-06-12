@@ -1337,24 +1337,26 @@ func (sf *ServerForm) createBasicForm() {
 		passwordIdx := findFormItemIndex(form, passwordField)
 
 		switch index {
-		case 1: // Key mode - remove Password, keep Keys
+		case 1: // Key mode - show Keys, hide Password
 			if passwordIdx >= 0 {
 				form.RemoveFormItem(passwordIdx)
 			}
-		case 2: // Password mode - remove Keys, keep Password
+			if keysIdx < 0 {
+				// Keys was removed, insert right after AuthMethod
+				insertFormItemAt(form, authIdx+1, keysField)
+			}
+		case 2: // Password mode - hide Keys, show Password
 			if keysIdx >= 0 {
 				form.RemoveFormItem(keysIdx)
 			}
-			// Ensure Password is present (insert right after AuthMethod)
 			if passwordIdx < 0 {
+				// Password was removed, insert right after AuthMethod
 				insertFormItemAt(form, authIdx+1, passwordField)
 			}
 		default: // Auto mode - restore both
-			// Keys should be right after AuthMethod
 			if keysIdx < 0 {
 				insertFormItemAt(form, authIdx+1, keysField)
 			}
-			// Password should be right after Keys (if Keys exists) or after AuthMethod
 			if findFormItemIndex(form, passwordField) < 0 {
 				keysNow := findFormItemIndex(form, keysField)
 				if keysNow >= 0 {
