@@ -218,6 +218,21 @@ func (r *Repository) addCommentNode(host *ssh_config.Host, comment string) {
 	host.Nodes = append(host.Nodes, commentNode)
 }
 
+// removeCommentNodes removes all comment nodes containing lazyssh custom fields.
+func (r *Repository) removeCommentNodes(host *ssh_config.Host) {
+	var filtered []ssh_config.Node
+	for _, node := range host.Nodes {
+		if empty, ok := node.(*ssh_config.Empty); ok {
+			if strings.HasPrefix(empty.Comment, "# lazyssh-auth-method: ") ||
+				strings.HasPrefix(empty.Comment, "# lazyssh-password: ") {
+				continue // Skip lazyssh comment nodes
+			}
+		}
+		filtered = append(filtered, node)
+	}
+	host.Nodes = filtered
+}
+
 // insertKVNodeAfterLastKV inserts a KV node immediately after the last existing KV node in the host.
 // This preserves any trailing non-KV nodes (blank lines, comments) that may exist after the host's
 // configuration block, preventing formatting shifts when adding new fields to a host entry.
@@ -346,8 +361,6 @@ func (r *Repository) updateHostNodes(host *ssh_config.Host, newServer domain.Ser
 		"permitlocalcommand":              newServer.PermitLocalCommand,
 		"escapechar":                      newServer.EscapeChar,
 		"loglevel":                        newServer.LogLevel,
-		"lazysshauthmethod":               newServer.AuthMethod,
-		"lazysshpassword":                 newServer.Password,
 	}
 
 	// Update or remove nodes based on value
@@ -391,6 +404,17 @@ func (r *Repository) updateHostNodes(host *ssh_config.Host, newServer domain.Ser
 	host.Nodes = removeNodesByKey(host.Nodes, "SetEnv")
 	for _, env := range newServer.SetEnv {
 		r.addKVNodeIfNotEmpty(host, "SetEnv", env)
+	}
+
+	// Handle custom lazyssh fields as comments (SSH ignores comments)
+	// First, remove old comment nodes
+	r.removeCommentNodes(host)
+	// Add new comment nodes
+	if newServer.AuthMethod != "" {
+		r.addCommentNode(host, "# lazyssh-auth-method: "+newServer.AuthMethod)
+	}
+	if newServer.Password != "" {
+		r.addCommentNode(host, "# lazyssh-password: "+newServer.Password)
 	}
 }
 
